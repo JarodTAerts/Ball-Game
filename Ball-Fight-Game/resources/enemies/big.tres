@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EnemyData.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/textures/faces/BigEnemyMadFace.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/textures/faces/BigEnemyMadFace2.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+DisplayName = "Big Enemy"
+MaxHealth = 200.0
+ChaseSpeed = 3.0
+ChaseRange = 75.0
+ContactDamage = 5.0
+ContactCooldown = 1.0
+HitFlashDuration = 0.2
+Scale = 2.0
+FaceTexture = ExtResource("2")
+HitFlashTexture = ExtResource("3")
+BaseColor = Color(0.588, 0.588, 0.588, 1)
+Metallic = 0.0
+Roughness = 0.5
+CanShoot = false

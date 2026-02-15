@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponData.cs" id="1"]
+[ext_resource type="AudioStream" path="res://assets/sounds/gunshot.mp3" id="2"]
+[ext_resource type="AudioStream" path="res://assets/sounds/reload.mp3" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/Shotgun.fbx" id="4"]
+
+[resource]
+script = ExtResource("1")
+Type = 2
+DisplayName = "Shotgun"
+Category = 0
+MagazineCapacity = 3
+FireRate = 1.0
+IsAutomatic = false
+BulletSpeed = 100.0
+Damage = 10.0
+PelletsPerShot = 3
+SpreadAngleDeg = 10.0
+ReloadTime = 1.5
+SwingDuration = 1.0
+SwingDamage = 100.0
+InitialLoadedAmmo = 3
+InitialTotalAmmo = 18
+WeaponModelScene = ExtResource("4")
+FireSound = ExtResource("2")
+ReloadSound = ExtResource("3")

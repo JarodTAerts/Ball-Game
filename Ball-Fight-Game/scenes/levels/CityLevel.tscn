@@ -1,0 +1,55 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/Hud.tscn" id="2"]
+[ext_resource type="Script" path="res://scripts/environment/TerrainGenerator.cs" id="3"]
+[ext_resource type="Script" path="res://scripts/environment/TreePlacer.cs" id="4"]
+[ext_resource type="Environment" path="res://resources/environment/default_environment.tres" id="5"]
+[ext_resource type="Script" path="res://scripts/spawners/EnemySpawner.cs" id="6"]
+[ext_resource type="Script" path="res://scripts/spawners/WeaponDropSpawner.cs" id="7"]
+[ext_resource type="Script" path="res://scripts/spawners/AmmoSpawner.cs" id="8"]
+
+[sub_resource type="WorldBoundaryShape3D" id="placeholder_shape"]
+
+[node name="CityLevel" type="Node3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 0)
+light_energy = 0.6
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("5")
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("3")
+TerrainSize = 200.0
+HeightScale = 2.0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Terrain"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain"]
+shape = SubResource("placeholder_shape")
+
+[node name="Trees" type="Node3D" parent="."]
+script = ExtResource("4")
+TreeCount = 5
+SpawnRange = 35.0
+
+[node name="Spawners" type="Node3D" parent="."]
+
+[node name="EnemySpawner" type="Node" parent="Spawners"]
+script = ExtResource("6")
+
+[node name="WeaponDropSpawner" type="Node" parent="Spawners"]
+script = ExtResource("7")
+
+[node name="AmmoSpawner" type="Node" parent="Spawners"]
+script = ExtResource("8")
+
+[node name="Player" parent="." instance=ExtResource("1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+
+[node name="HUD" parent="." instance=ExtResource("2")]

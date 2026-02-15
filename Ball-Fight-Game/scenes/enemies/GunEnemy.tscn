@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/GunEnemy.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/gun.tres" id="2"]
+
+[sub_resource type="SphereShape3D" id="1"]
+radius = 0.5
+
+[sub_resource type="SphereMesh" id="2"]
+radius = 0.5
+
+[sub_resource type="StandardMaterial3D" id="3"]
+albedo_color = Color(0.5, 0.1, 0.8, 1)
+
+[sub_resource type="SphereShape3D" id="4"]
+radius = 0.6
+
+[node name="GunEnemy" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 34
+script = ExtResource("1")
+Stats = ExtResource("2")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("2")
+surface_material_override/0 = SubResource("3")
+
+[node name="DamageArea" type="Area3D" parent="."]
+collision_layer = 4
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="DamageArea"]
+shape = SubResource("4")
+
+[node name="WeaponArm" type="Node3D" parent="."]
+
+[node name="BulletSpawn" type="Marker3D" parent="WeaponArm"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)

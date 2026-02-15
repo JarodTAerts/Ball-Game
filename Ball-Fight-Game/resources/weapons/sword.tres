@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/Sword.fbx" id="2"]
+
+[resource]
+script = ExtResource("1")
+Type = 4
+DisplayName = "Sword"
+Category = 1
+MagazineCapacity = 0
+FireRate = 0.25
+IsAutomatic = false
+BulletSpeed = 0.0
+Damage = 0.0
+PelletsPerShot = 1
+SpreadAngleDeg = 0.0
+ReloadTime = 1.5
+SwingDuration = 1.0
+SwingDamage = 100.0
+InitialLoadedAmmo = 0
+InitialTotalAmmo = 0
+WeaponModelScene = ExtResource("2")

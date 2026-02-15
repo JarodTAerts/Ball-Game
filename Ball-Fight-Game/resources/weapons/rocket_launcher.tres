@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponData.cs" id="1"]
+[ext_resource type="AudioStream" path="res://assets/sounds/harpoon.mp3" id="2"]
+[ext_resource type="AudioStream" path="res://assets/sounds/reload.mp3" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/RocketLauncher.fbx" id="4"]
+
+[resource]
+script = ExtResource("1")
+Type = 3
+DisplayName = "Rocket Launcher"
+Category = 0
+MagazineCapacity = 1
+FireRate = 2.0
+IsAutomatic = false
+BulletSpeed = 60.0
+Damage = 150.0
+PelletsPerShot = 1
+SpreadAngleDeg = 0.0
+ReloadTime = 1.5
+SwingDuration = 1.0
+SwingDamage = 100.0
+InitialLoadedAmmo = 1
+InitialTotalAmmo = 5
+WeaponModelScene = ExtResource("4")
+FireSound = ExtResource("2")
+ReloadSound = ExtResource("3")

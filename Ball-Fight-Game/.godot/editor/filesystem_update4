@@ -1,0 +1,14 @@
+res://scripts/enemies/Enemy.cs
+res://scripts/tutorial/Checkpoint.cs
+res://scripts/tutorial/TutorialController.cs
+res://scripts/ui/TutorialHud.cs
+res://scripts/spawners/AmmoSpawner.cs
+res://scripts/spawners/WeaponDropSpawner.cs
+res://scripts/spawners/EnemySpawner.cs
+res://scripts/environment/TreePlacer.cs
+res://scripts/ui/Hud.cs
+res://scripts/player/Player.cs
+res://scripts/environment/TerrainGenerator.cs
+res://scripts/ui/StartMenu.cs
+res://scripts/autoloads/WeaponManager.cs
+res://scripts/autoloads/GameManager.cs

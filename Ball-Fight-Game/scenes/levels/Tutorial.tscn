@@ -1,0 +1,147 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/TutorialHud.cs" id="2"]
+[ext_resource type="Script" path="res://scripts/tutorial/TutorialController.cs" id="3"]
+[ext_resource type="Script" path="res://scripts/environment/TerrainGenerator.cs" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/tutorial/Checkpoint.tscn" id="5"]
+[ext_resource type="Environment" path="res://resources/environment/default_environment.tres" id="6"]
+
+[sub_resource type="WorldBoundaryShape3D" id="placeholder_shape"]
+
+[node name="Tutorial" type="Node3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 0)
+light_energy = 1.0
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("6")
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("4")
+TerrainSize = 300.0
+HeightScale = 0.5
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Terrain"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain"]
+shape = SubResource("placeholder_shape")
+
+[node name="TutorialController" type="Node" parent="."]
+script = ExtResource("3")
+
+[node name="Checkpoints" type="Node3D" parent="."]
+
+[node name="Checkpoint1" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 0)
+
+[node name="Checkpoint2" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 10)
+
+[node name="Checkpoint3" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 15)
+
+[node name="Checkpoint4" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 10)
+
+[node name="Checkpoint5" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 0)
+
+[node name="Checkpoint6" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, -10)
+
+[node name="Player" parent="." instance=ExtResource("1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+
+[node name="TutorialHUD" type="CanvasLayer" parent="."]
+process_mode = 3
+script = ExtResource("2")
+
+[node name="MarginContainer" type="MarginContainer" parent="TutorialHUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TutorialHUD/MarginContainer"]
+layout_mode = 2
+
+[node name="HealthLabel" type="Label" parent="TutorialHUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Health: 100"
+
+[node name="KillsLabel" type="Label" parent="TutorialHUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Kills: 0"
+
+[node name="AmmoLabel" type="Label" parent="TutorialHUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+
+[node name="MessageLabel" type="Label" parent="TutorialHUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="PauseOverlay" type="ColorRect" parent="TutorialHUD"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.5)
+
+[node name="Label" type="Label" parent="TutorialHUD/PauseOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -20.0
+offset_right = 200.0
+offset_bottom = 20.0
+text = "Paused"
+horizontal_alignment = 1
+
+[node name="GameOverOverlay" type="ColorRect" parent="TutorialHUD"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.3, 0, 0, 0.5)
+
+[node name="Label" type="Label" parent="TutorialHUD/GameOverOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -20.0
+offset_right = 200.0
+offset_bottom = 20.0
+text = "Game Over!"
+horizontal_alignment = 1
+
+[node name="TutorialMessage" type="Label" parent="TutorialHUD"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -80.0
+offset_right = 300.0
+offset_bottom = -20.0
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 2

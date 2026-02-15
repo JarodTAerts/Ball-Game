@@ -1,0 +1,72 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/Player.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/textures/faces/SmileyFace1.png" id="2"]
+
+[sub_resource type="SphereShape3D" id="1"]
+radius = 0.5
+
+[sub_resource type="SphereMesh" id="2"]
+radius = 0.5
+
+[sub_resource type="StandardMaterial3D" id="3"]
+albedo_texture = ExtResource("2")
+metallic = 0.629
+roughness = 0.69
+
+[sub_resource type="StandardMaterial3D" id="5"]
+albedo_color = Color(1, 0, 0, 1)
+emission_enabled = true
+emission = Color(1, 0, 0, 1)
+shading_mode = 0
+
+[sub_resource type="CylinderMesh" id="4"]
+top_radius = 0.005
+bottom_radius = 0.005
+height = 50.0
+material = SubResource("5")
+
+[node name="Player" type="RigidBody3D"]
+collision_layer = 2
+collision_mask = 45
+script = ExtResource("1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("2")
+surface_material_override/0 = SubResource("3")
+
+[node name="Pivot" type="Node3D" parent="."]
+top_level = true
+
+[node name="CameraArm" type="Node3D" parent="Pivot"]
+
+[node name="Camera3D" type="Camera3D" parent="Pivot/CameraArm"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 5)
+
+[node name="WeaponArm" type="Node3D" parent="Pivot"]
+
+[node name="WeaponMount" type="Node3D" parent="Pivot/WeaponArm"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, -1)
+
+[node name="BulletSpawn" type="Marker3D" parent="Pivot/WeaponArm/WeaponMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.0)
+
+[node name="FlashlightArm" type="Node3D" parent="Pivot"]
+
+[node name="SpotLight3D" type="SpotLight3D" parent="Pivot/FlashlightArm"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -0.5)
+light_energy = 0.0
+spot_range = 30.0
+
+[node name="LaserRay" type="RayCast3D" parent="Pivot/WeaponArm/WeaponMount"]
+target_position = Vector3(0, 0, -100)
+enabled = false
+
+[node name="LaserLine" type="MeshInstance3D" parent="Pivot/WeaponArm/WeaponMount/LaserRay"]
+mesh = SubResource("4")
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -25)
+visible = false
+cast_shadow = 0

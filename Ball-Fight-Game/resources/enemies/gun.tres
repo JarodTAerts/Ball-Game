@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EnemyData.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/textures/faces/MadFace.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/textures/faces/MadFace2.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+DisplayName = "Gun Enemy"
+MaxHealth = 100.0
+ChaseSpeed = 5.0
+ChaseRange = 75.0
+ContactDamage = 2.0
+ContactCooldown = 1.0
+HitFlashDuration = 0.2
+Scale = 1.0
+FaceTexture = ExtResource("2")
+HitFlashTexture = ExtResource("3")
+BaseColor = Color(1, 1, 1, 1)
+Metallic = 0.0
+Roughness = 0.5
+CanShoot = true
+GunFireRate = 0.5
+GunRange = 10.0
+BulletSpeed = 50.0
+BulletDamage = 10.0
