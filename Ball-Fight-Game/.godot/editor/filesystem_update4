@@ -17,3 +17,4 @@ res://scripts/pickups/WeaponPickup.cs
 res://scripts/environment/CityGenerator.cs
 res://scripts/environment/LevelConfig.cs
 res://scripts/environment/ArenaWallBuilder.cs
+res://scenes/player/Player.tscn

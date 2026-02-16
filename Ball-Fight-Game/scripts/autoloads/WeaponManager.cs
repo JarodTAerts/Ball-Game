@@ -28,6 +28,7 @@ public partial class WeaponManager : Node
 
     /// <summary>
     /// Fire a single bullet from a spawn point in a given direction.
+    /// Used for enemy shots and any future physics-based projectile.
     /// </summary>
     public void FireBullet(Vector3 origin, Vector3 direction, float speed, float damage, string firedBy)
     {
@@ -38,7 +39,34 @@ public partial class WeaponManager : Node
     }
 
     /// <summary>
-    /// Fire a shotgun blast: 5 pellets in a fan pattern.
+    /// Fire an instant hitscan tracer round. Performs a raycast immediately,
+    /// deals damage at the hit point, and draws a yellow tracer line that
+    /// fades out. Used for handgun, rifle.
+    /// </summary>
+    public void FireTracer(Vector3 origin, Vector3 direction, float maxRange,
+        float damage, string firedBy)
+    {
+        var tracer = new Tracer();
+        GetTree().CurrentScene.AddChild(tracer);
+        tracer.Fire(origin, direction, maxRange, damage, firedBy);
+    }
+
+    /// <summary>
+    /// Fire a shotgun blast of tracer rounds: 5 pellets in a fan pattern.
+    /// </summary>
+    public void FireTracerShotgun(Vector3 origin, Vector3 forward, float maxRange,
+        float damage, string firedBy, float spreadDeg = 10f)
+    {
+        float spreadRad = Mathf.DegToRad(spreadDeg);
+        for (int i = -2; i <= 2; i++)
+        {
+            var dir = forward.Rotated(Vector3.Up, spreadRad * i * 0.5f);
+            FireTracer(origin, dir, maxRange, damage, firedBy);
+        }
+    }
+
+    /// <summary>
+    /// Fire a shotgun blast of physical bullets: 5 pellets in a fan pattern.
     /// </summary>
     public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, string firedBy, float spreadDeg = 10f)
     {

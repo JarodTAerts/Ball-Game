@@ -350,10 +350,14 @@ public partial class Player : RigidBody3D
     }
 
     /// <summary>
-    /// Shifts a weapon model so its AABB center sits at the parent mount's
-    /// origin. Without this, models imported from .fbx have their origin at
-    /// the handle/bottom — long barrels extend far forward and dip below the
-    /// ground when the mount pitches down.
+    /// Shifts a weapon model along the Z axis (barrel direction) so its
+    /// midpoint sits at the mount origin. This makes it look like the
+    /// player is gripping the center of the weapon rather than the handle,
+    /// preventing long barrels (rifle, shotgun) from extending far out
+    /// in front of the ball.
+    ///
+    /// Only the Z axis is adjusted — X and Y stay at zero so the weapon
+    /// doesn't shift sideways or vertically on the mount.
     /// </summary>
     private static void CenterWeaponModel(Node3D model)
     {
@@ -380,9 +384,10 @@ public partial class Player : RigidBody3D
 
         if (!combined.HasValue) return;
 
-        // Offset the model so its AABB center sits at (0,0,0) in mount space
+        // Only center along Z (the barrel/length axis). Leave X and Y alone
+        // so the weapon doesn't shift sideways or vertically.
         var center = combined.Value.GetCenter();
-        model.Position = -center;
+        model.Position = new Vector3(0, 0, -center.Z);
     }
 
     /// <summary>
@@ -741,8 +746,8 @@ public partial class Player : RigidBody3D
         switch (CurrentWeapon.Type)
         {
             case WeaponType.Shotgun:
-                _wm.FireShotgun(origin, forward,
-                    CurrentWeapon.BulletSpeed, CurrentWeapon.Damage, "player",
+                _wm.FireTracerShotgun(origin, forward,
+                    200f, CurrentWeapon.Damage, "player",
                     CurrentWeapon.SpreadAngleDeg);
                 LoadedAmmo -= 1;
                 break;
@@ -752,9 +757,9 @@ public partial class Player : RigidBody3D
                 LoadedAmmo -= 1;
                 break;
 
-            default: // Handgun, Rifle
-                _wm.FireBullet(origin, forward,
-                    CurrentWeapon.BulletSpeed, CurrentWeapon.Damage, "player");
+            default: // Handgun, Rifle — hitscan tracers
+                _wm.FireTracer(origin, forward,
+                    200f, CurrentWeapon.Damage, "player");
                 LoadedAmmo -= 1;
                 break;
         }
