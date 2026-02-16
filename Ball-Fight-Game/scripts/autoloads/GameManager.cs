@@ -49,7 +49,9 @@ public partial class GameManager : Node
     {
         GameOver = true;
         EmitSignal(SignalName.GameOverTriggered);
-        GetTree().Paused = true;
+        // Do NOT pause the tree — let physics keep running so the world
+        // continues (enemies roll around, debris flies, etc.)
+        // The Player and HUD check GameOver to stop processing input.
     }
 
     /// <summary>

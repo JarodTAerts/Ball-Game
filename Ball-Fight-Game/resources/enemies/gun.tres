@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1")
 DisplayName = "Gun Enemy"
-MaxHealth = 100.0
+MaxHealth = 50.0
 ChaseSpeed = 5.0
 ChaseRange = 75.0
 ContactDamage = 2.0
@@ -21,6 +21,6 @@ Metallic = 0.0
 Roughness = 0.5
 CanShoot = true
 GunFireRate = 0.5
-GunRange = 10.0
+GunRange = 30.0
 BulletSpeed = 50.0
 BulletDamage = 10.0

@@ -3,10 +3,11 @@
 [ext_resource type="Script" path="res://scripts/tutorial/Checkpoint.cs" id="1"]
 
 [sub_resource type="SphereShape3D" id="1"]
-radius = 0.5
+radius = 2.0
 
 [sub_resource type="SphereMesh" id="2"]
-radius = 0.5
+radius = 0.8
+height = 1.6
 
 [sub_resource type="StandardMaterial3D" id="3"]
 albedo_color = Color(0.985, 0.0, 1.0, 1)
@@ -26,3 +27,4 @@ shape = SubResource("1")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("2")
 surface_material_override/0 = SubResource("3")
+cast_shadow = 0

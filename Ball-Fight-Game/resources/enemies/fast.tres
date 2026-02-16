@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1")
 DisplayName = "Fast Enemy"
-MaxHealth = 75.0
+MaxHealth = 38.0
 ChaseSpeed = 10.0
 ChaseRange = 75.0
 ContactDamage = 2.0

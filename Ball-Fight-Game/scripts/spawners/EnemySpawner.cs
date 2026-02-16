@@ -21,9 +21,11 @@ public partial class EnemySpawner : Node
     // ── Exports ──────────────────────────────────────────────────────────
     [ExportGroup("Timing")]
     [Export] public float SpawnRate      { get; set; } = 3f;
+    [Export] public float InitialSpawnRate { get; set; } = 6f;
+    [Export] public int   RampUpKills    { get; set; } = 20;
 
     [ExportGroup("Limits")]
-    [Export] public int   MaxEnemies     { get; set; } = 50;
+    [Export] public int   MaxEnemies     { get; set; } = 25;
     [Export] public float SpawnBoundary  { get; set; } = 45f;
 
     [ExportGroup("Kill Thresholds")]
@@ -53,9 +55,30 @@ public partial class EnemySpawner : Node
     {
         _gm = GetNode<GameManager>("/root/GameManager");
 
-        _timer = new Timer { WaitTime = SpawnRate, Autostart = true };
+        // Start with the slower initial rate; ramp up as kills increase
+        float startRate = _gm.Kills >= RampUpKills ? SpawnRate : InitialSpawnRate;
+        _timer = new Timer { WaitTime = startRate, Autostart = true };
         _timer.Timeout += OnSpawnTick;
         AddChild(_timer);
+
+        _gm.KillsChanged += OnKillsChanged;
+    }
+
+    /// <summary>
+    /// Gradually speed up spawn rate from InitialSpawnRate to SpawnRate
+    /// over the first RampUpKills kills, making the early game easier.
+    /// </summary>
+    private void OnKillsChanged(int kills)
+    {
+        if (kills >= RampUpKills)
+        {
+            _timer.WaitTime = SpawnRate;
+        }
+        else
+        {
+            float t = (float)kills / RampUpKills;
+            _timer.WaitTime = Mathf.Lerp(InitialSpawnRate, SpawnRate, t);
+        }
     }
 
     private void OnSpawnTick()

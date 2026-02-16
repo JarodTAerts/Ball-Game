@@ -24,7 +24,7 @@ collision_layer = 32
 collision_mask = 0
 script = ExtResource("4")
 TerrainSize = 300.0
-HeightScale = 0.5
+HeightScale = 0.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Terrain"]
 
@@ -44,15 +44,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 10)
 
 [node name="Checkpoint3" parent="Checkpoints" instance=ExtResource("5")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 15)
-
-[node name="Checkpoint4" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 10)
-
-[node name="Checkpoint5" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 0)
-
-[node name="Checkpoint6" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, -10)
 
 [node name="Player" parent="." instance=ExtResource("1")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

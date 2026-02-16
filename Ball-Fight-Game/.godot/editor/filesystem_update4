@@ -12,3 +12,8 @@ res://scripts/environment/TerrainGenerator.cs
 res://scripts/ui/StartMenu.cs
 res://scripts/autoloads/WeaponManager.cs
 res://scripts/autoloads/GameManager.cs
+res://resources/environment/default_environment.tres
+res://scripts/pickups/WeaponPickup.cs
+res://scripts/environment/CityGenerator.cs
+res://scripts/environment/LevelConfig.cs
+res://scripts/environment/ArenaWallBuilder.cs

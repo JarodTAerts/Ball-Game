@@ -34,11 +34,15 @@ horizontal_alignment = 1
 
 [node name="PlayButton" type="Button" parent="MainPanel/VBoxContainer"]
 layout_mode = 2
-text = "Choose Level"
+text = "Endless Mode"
 
 [node name="TutorialButton" type="Button" parent="MainPanel/VBoxContainer"]
 layout_mode = 2
 text = "Tutorial"
+
+[node name="LeaderboardButton" type="Button" parent="MainPanel/VBoxContainer"]
+layout_mode = 2
+text = "Leaderboard"
 
 [node name="InfoButton" type="Button" parent="MainPanel/VBoxContainer"]
 layout_mode = 2
@@ -69,16 +73,16 @@ offset_bottom = 120.0
 
 [node name="Title" type="Label" parent="LevelSelectPanel/VBoxContainer"]
 layout_mode = 2
-text = "Choose Level"
+text = "Endless Mode"
 horizontal_alignment = 1
 
 [node name="ArenaButton" type="Button" parent="LevelSelectPanel/VBoxContainer"]
 layout_mode = 2
 text = "Arena"
 
-[node name="OutdoorButton" type="Button" parent="LevelSelectPanel/VBoxContainer"]
+[node name="HillsButton" type="Button" parent="LevelSelectPanel/VBoxContainer"]
 layout_mode = 2
-text = "Outdoor"
+text = "Hills"
 
 [node name="CityButton" type="Button" parent="LevelSelectPanel/VBoxContainer"]
 layout_mode = 2

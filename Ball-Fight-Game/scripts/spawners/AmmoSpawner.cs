@@ -8,8 +8,8 @@ namespace BallFightGame;
 /// </summary>
 public partial class AmmoSpawner : Node
 {
-    [Export] public float SpawnRate      { get; set; } = 8f;
-    [Export] public float GrenadeChance  { get; set; } = 50f;
+    [Export] public float SpawnRate      { get; set; } = 16f;
+    [Export] public float GrenadeChance  { get; set; } = 25f;
     [Export] public float SpawnBoundary  { get; set; } = 45f;
 
     private static readonly PackedScene AmmoScene    = GD.Load<PackedScene>(Scenes.AmmoPickup);

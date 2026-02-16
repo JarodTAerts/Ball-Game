@@ -17,8 +17,7 @@ radius = 0.6
 
 [node name="BigEnemy" type="RigidBody3D"]
 collision_layer = 4
-collision_mask = 34
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
+collision_mask = 39
 script = ExtResource("1")
 Stats = ExtResource("2")
 

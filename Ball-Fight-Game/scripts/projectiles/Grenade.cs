@@ -10,7 +10,7 @@ namespace BallFightGame;
 public partial class Grenade : RigidBody3D
 {
     private const float FuseTime = 3f;
-    private const float Damage   = 150f;
+    private const float Damage   = 75f;
     private bool _exploded;
 
     private MeshInstance3D _mesh = null!;
@@ -87,7 +87,11 @@ public partial class Grenade : RigidBody3D
         _exploded = true;
 
         var wm = GetNode<WeaponManager>("/root/WeaponManager");
-        wm.SpawnExplosion(GlobalPosition);
+        var explosion = wm.SpawnExplosion(GlobalPosition);
+        // Grenade explosions are much more powerful than default
+        explosion.Damage = Damage;
+        explosion.Force = 20f;
+        explosion.ExplosionRadius = 5f;
         QueueFree();
     }
 }

@@ -35,15 +35,25 @@ public partial class WeaponDropSpawner : Node
 
         _entries = new List<SpawnEntry>
         {
+            new(0,  "res://resources/weapons/dagger.tres",          false), // starter melee
             new(0,  "res://resources/weapons/handgun.tres",         false),
             new(15, "res://resources/weapons/shotgun.tres",         false),
-            new(30, "res://resources/weapons/sword.tres",           false),
+            new(30, "res://resources/weapons/sword.tres",           false), // melee upgrade
             new(40, "res://resources/weapons/rifle.tres",           false),
-            new(50, "res://resources/weapons/axe.tres",             false),
+            new(50, "res://resources/weapons/axe.tres",             false), // melee upgrade
             new(60, "res://resources/weapons/rocket_launcher.tres", false),
         };
 
         _gm.KillsChanged += OnKillsChanged;
+
+        // Defer initial spawn so the scene tree is fully built
+        // (terrain, player, etc. need to exist before we spawn pickups)
+        CallDeferred(MethodName.SpawnInitialWeapons);
+    }
+
+    private void SpawnInitialWeapons()
+    {
+        OnKillsChanged(_gm.Kills);
     }
 
     private void OnKillsChanged(int kills)

@@ -29,6 +29,10 @@ public partial class Player : RigidBody3D
     [Signal] public delegate void WeaponChangedEventHandler();
     [Signal] public delegate void MessageEventHandler(string text);
     [Signal] public delegate void BoundaryWarningEventHandler(bool outside, float arrowAngleDeg);
+    [Signal] public delegate void EnergyChangedEventHandler(float energy);
+    [Signal] public delegate void GrenadePowerChangedEventHandler(float power, bool visible);
+    [Signal] public delegate void ShotFiredEventHandler();
+    [Signal] public delegate void MeleeWeaponChangedEventHandler();
 
     // ── Exports ──────────────────────────────────────────────────────────
     [ExportGroup("Movement")]
@@ -45,12 +49,21 @@ public partial class Player : RigidBody3D
     [ExportGroup("Combat")]
     [Export] public float MaxHealth { get; set; } = 100f;
 
+    [ExportGroup("Energy")]
+    [Export] public float MaxEnergy        { get; set; } = 100f;
+    [Export] public float EnergyRegenRate  { get; set; } = 5f;    // per second
+    [Export] public float JumpEnergyCost   { get; set; } = 20f;
+    [Export] public float BrakeEnergyCost  { get; set; } = 20f;
+
     [ExportGroup("Flashlight")]
     [Export] public float FlashlightIntensity { get; set; } = 1.5f;
 
     // ── State ────────────────────────────────────────────────────────────
     public float      Health       { get; private set; }
+    public float      Shield       { get; private set; }  // placeholder for future armor
+    public float      Energy       { get; private set; }
     public WeaponData? CurrentWeapon { get; private set; }
+    public WeaponData? CurrentMelee  { get; private set; }  // left-hand melee weapon
     public int        LoadedAmmo   { get; private set; }
     public int        TotalAmmo    { get; private set; }
     public int        Grenades     { get; private set; } = 1;
@@ -60,11 +73,29 @@ public partial class Player : RigidBody3D
     private float _nextFireTime;         // fire-rate limiter
     private bool  _isReloading;
     private bool  _flashlightOn;
-    private bool  _isSwinging;
-    private float _swingProgress;
     private bool  _outsideBoundary;      // true when past the soft boundary
     private MeshInstance3D? _boundaryWall; // transparent wall visual
     private StandardMaterial3D? _boundaryMat;
+
+    // Grenade charge state
+    private bool  _chargingGrenade;
+    private float _grenadeChargePower;   // 0.0 → 1.0
+    private const float GrenadeChargeRate = 1.5f;  // seconds from min to max
+    private const float GrenadeMinSpeed   = 3f;    // barely tosses in front
+    private const float GrenadeMaxSpeed   = 25f;   // ~30m throw with arc
+
+    // Hit flash state
+    private MeshInstance3D? _playerMesh;
+    private StandardMaterial3D? _playerNormalMat;
+    private StandardMaterial3D? _playerFlashMat;
+    private float _hitFlashTimeLeft;
+
+    // Accuracy drift (COD-style reticle bloom)
+    private float _accuracyDrift;            // current drift in degrees
+    private float _accuracyDriftBase;        // base drift for current weapon
+    private float _accuracyDriftMax = 8f;    // max drift cap
+    private const float DriftKickDeg    = 2.5f;  // degrees added per shot
+    private const float DriftRecoverTime = 0.6f;  // seconds to fully recover
 
     // ── Cached node refs (set once in _Ready, never searched again) ──────
     private GameManager   _gm = null!;
@@ -77,14 +108,31 @@ public partial class Player : RigidBody3D
     private SpotLight3D   _flashlight    = null!;
     private RayCast3D     _laserRay      = null!;
     private MeshInstance3D? _laserLine;
+    private Camera3D      _camera        = null!;
+    private Vector3       _defaultCameraLocalPos;  // original offset from CameraArm
+    private Vector3       _aimPoint;               // world point at screen center
+    private const float   AimRayLength = 200f;     // how far the aim ray reaches
 
-    // Audio — persistent nodes, reused instead of instantiating per shot
-    private AudioStreamPlayer3D _fireAudio   = null!;
+    // Audio — pool of fire-sound players so overlapping shots don't clip
+    private const int FireAudioPoolSize = 6;
+    private AudioStreamPlayer3D[] _fireAudioPool = null!;
+    private int _fireAudioIndex;
     private AudioStreamPlayer3D _reloadAudio = null!;
     private AudioStreamPlayer3D _dryFireAudio = null!;
 
     // Currently displayed weapon model (child of WeaponMount)
     private Node3D? _weaponModelInstance;
+
+    // Melee dual-wield state
+    private Node3D        _meleeMount = null!;     // left-hand mount point
+    private Node3D?       _meleeModelInstance;     // currently displayed melee model
+    private bool          _isMeleeSwinging;
+    private float         _meleeSwingProgress;     // 0..1
+    private float         _nextMeleeTime;          // cooldown timer
+    private AudioStreamPlayer3D _meleeSwingAudio = null!;
+
+    // Damage crack overlay (Minecraft-style progressive cracking)
+    private ShaderMaterial? _crackMat;
 
     // ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -95,6 +143,8 @@ public partial class Player : RigidBody3D
         _gm.Player = this;
 
         Health = MaxHealth;
+        Energy = MaxEnergy;
+        Shield = 0f;  // armor not yet implemented
         AddToGroup(Groups.Player);
         Input.MouseMode = Input.MouseModeEnum.Captured;
 
@@ -106,10 +156,13 @@ public partial class Player : RigidBody3D
         _cameraArm   = GetNode<Node3D>("Pivot/CameraArm");
         _weaponArm   = GetNode<Node3D>("Pivot/WeaponArm");
         _weaponMount = GetNode<Node3D>("Pivot/WeaponArm/WeaponMount");
+        _meleeMount  = GetNode<Node3D>("Pivot/WeaponArm/MeleeMount");
         _bulletSpawn = GetNode<Marker3D>("Pivot/WeaponArm/WeaponMount/BulletSpawn");
         _flashlight  = GetNode<SpotLight3D>("Pivot/FlashlightArm/SpotLight3D");
         _laserRay    = GetNode<RayCast3D>("Pivot/WeaponArm/WeaponMount/LaserRay");
         _laserLine   = GetNodeOrNull<MeshInstance3D>("Pivot/WeaponArm/WeaponMount/LaserRay/LaserLine");
+        _camera      = GetNode<Camera3D>("Pivot/CameraArm/Camera3D");
+        _defaultCameraLocalPos = _camera.Position;  // (0, 2, 5)
 
         // Initialise pivot position to match the ball
         _pivot.GlobalPosition = GlobalPosition;
@@ -120,9 +173,13 @@ public partial class Player : RigidBody3D
         _flashlight.LightEnergy = 0f; // starts off
         UpdateLaserVisibility();
 
-        // Create persistent audio players (replaces Unity's Instantiate(bulletSound) per shot)
-        _fireAudio = new AudioStreamPlayer3D { MaxDistance = 50f };
-        AddChild(_fireAudio);
+        // Create a pool of fire-sound players so rapid shots overlap properly
+        _fireAudioPool = new AudioStreamPlayer3D[FireAudioPoolSize];
+        for (int i = 0; i < FireAudioPoolSize; i++)
+        {
+            _fireAudioPool[i] = new AudioStreamPlayer3D { MaxDistance = 50f };
+            AddChild(_fireAudioPool[i]);
+        }
         _reloadAudio = new AudioStreamPlayer3D { MaxDistance = 30f };
         AddChild(_reloadAudio);
         _dryFireAudio = new AudioStreamPlayer3D
@@ -131,6 +188,27 @@ public partial class Player : RigidBody3D
             Stream = GD.Load<AudioStream>(Assets.SfxDryFire),
         };
         AddChild(_dryFireAudio);
+        _meleeSwingAudio = new AudioStreamPlayer3D { MaxDistance = 30f };
+        AddChild(_meleeSwingAudio);
+
+        // Attach crack overlay for damage visualization
+        _crackMat = DamageCrackOverlay.Attach(this, 0.52f);
+
+        // Cache mesh for hit flash
+        _playerMesh = GetNode<MeshInstance3D>("MeshInstance3D");
+        if (_playerMesh.GetSurfaceOverrideMaterial(0) is StandardMaterial3D existingMat)
+            _playerNormalMat = existingMat;
+        else
+        {
+            _playerNormalMat = new StandardMaterial3D { AlbedoColor = Colors.White };
+        }
+        _playerFlashMat = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(1f, 0.15f, 0.1f),
+            EmissionEnabled = true,
+            Emission = new Color(1f, 0f, 0f),
+            EmissionEnergyMultiplier = 0.6f,
+        };
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -151,6 +229,8 @@ public partial class Player : RigidBody3D
 
             SetArmPitch(_cameraArm, _pitch);
             SetArmPitch(_weaponArm, _pitch);
+            // WeaponMount orientation is updated in UpdateAimPoint() to
+            // point at screen center, overriding the arm's inherited pitch.
         }
     }
 
@@ -166,18 +246,35 @@ public partial class Player : RigidBody3D
         HandleJump();
         HandleBrake();
         ClampToBoundary();
+        RegenerateEnergy((float)delta);
+        AdjustCameraForWalls();
     }
 
     public override void _Process(double delta)
     {
         if (_gm.GameOver) return;
+        UpdateAimPoint();
         HandleFlashlight();
         HandleFire(delta);
         HandleReload();
-        HandleGrenade();
+        HandleGrenade(delta);
         HandleMeleeSwing(delta);
-        HandlePause();
-        HandleReturnToMenu();
+
+        // Tick down hit flash
+        if (_hitFlashTimeLeft > 0f)
+        {
+            _hitFlashTimeLeft -= (float)delta;
+            if (_hitFlashTimeLeft <= 0f && _playerMesh != null)
+                _playerMesh.MaterialOverride = null;
+        }
+
+        // Recover accuracy drift
+        if (_accuracyDrift > _accuracyDriftBase)
+        {
+            float recoverRate = (_accuracyDriftMax - _accuracyDriftBase) / DriftRecoverTime;
+            _accuracyDrift = Mathf.MoveToward(_accuracyDrift, _accuracyDriftBase,
+                recoverRate * (float)delta);
+        }
     }
 
     // ── Public API (called by pickups, enemies, explosions) ──────────────
@@ -186,35 +283,128 @@ public partial class Player : RigidBody3D
     {
         Health = Mathf.Max(0, Health - amount);
         EmitSignal(SignalName.HealthChanged, Health);
+
+        // Update crack overlay
+        if (_crackMat != null)
+            DamageCrackOverlay.UpdateDamage(_crackMat, Health, MaxHealth);
+
+        // Flash red
+        if (_playerMesh != null && _playerFlashMat != null)
+        {
+            _playerMesh.MaterialOverride = _playerFlashMat;
+            _hitFlashTimeLeft = 0.15f;
+        }
+
         if (Health <= 0f)
             Die();
     }
 
     public void EquipWeapon(WeaponData weapon, int loaded, int total)
     {
+        // Melee weapons go to the left-hand slot instead
+        if (weapon.Category == WeaponCategory.Melee)
+        {
+            EquipMelee(weapon);
+            return;
+        }
+
         CurrentWeapon = weapon;
         LoadedAmmo = loaded;
         TotalAmmo = total;
         _isReloading = false;
-        _isSwinging = false;
-        _swingProgress = 0f;
         UpdateLaserVisibility();
 
-        // Swap weapon model
+        // Swap weapon model on the right-hand mount, centered at midpoint
         _weaponModelInstance?.QueueFree();
         _weaponModelInstance = null;
         if (weapon.WeaponModelScene != null)
         {
             _weaponModelInstance = weapon.WeaponModelScene.Instantiate<Node3D>();
             _weaponMount.AddChild(_weaponModelInstance);
+
+            // Center the model at its AABB midpoint so the mount origin sits
+            // at the weapon's center, not the handle. This prevents long
+            // barrels from extending far forward and dipping below the ground
+            // when the mount pitches down even slightly.
+            CenterWeaponModel(_weaponModelInstance);
         }
 
         // Swap audio streams
-        _fireAudio.Stream = weapon.FireSound;
+        foreach (var ap in _fireAudioPool)
+            ap.Stream = weapon.FireSound;
         _reloadAudio.Stream = weapon.ReloadSound;
+
+        // Set base accuracy drift per weapon
+        _accuracyDriftBase = weapon.Type switch
+        {
+            WeaponType.Rifle          => 0.3f,
+            WeaponType.Handgun        => 0.8f,
+            WeaponType.Shotgun        => 2.0f,
+            WeaponType.RocketLauncher => 2.0f,
+            _                         => 0.5f,
+        };
+        _accuracyDrift = _accuracyDriftBase;
 
         EmitSignal(SignalName.WeaponChanged);
         EmitAmmoSignal();
+    }
+
+    /// <summary>
+    /// Shifts a weapon model so its AABB center sits at the parent mount's
+    /// origin. Without this, models imported from .fbx have their origin at
+    /// the handle/bottom — long barrels extend far forward and dip below the
+    /// ground when the mount pitches down.
+    /// </summary>
+    private static void CenterWeaponModel(Node3D model)
+    {
+        // Find the combined AABB of all MeshInstance3D children
+        Aabb? combined = null;
+        foreach (var child in model.GetChildren())
+        {
+            if (child is MeshInstance3D meshInst && meshInst.Mesh != null)
+            {
+                var aabb = meshInst.Mesh.GetAabb();
+                // Transform the mesh AABB into the model's local space
+                aabb.Position += meshInst.Position;
+                combined = combined.HasValue
+                    ? combined.Value.Merge(aabb)
+                    : aabb;
+            }
+        }
+        // Also check the model itself if it's a MeshInstance3D (single-mesh .fbx)
+        if (model is MeshInstance3D rootMesh && rootMesh.Mesh != null)
+        {
+            var aabb = rootMesh.Mesh.GetAabb();
+            combined = combined.HasValue ? combined.Value.Merge(aabb) : aabb;
+        }
+
+        if (!combined.HasValue) return;
+
+        // Offset the model so its AABB center sits at (0,0,0) in mount space
+        var center = combined.Value.GetCenter();
+        model.Position = -center;
+    }
+
+    /// <summary>
+    /// Equip a melee weapon in the left-hand slot. Does NOT replace the
+    /// ranged weapon — the player can have both simultaneously.
+    /// </summary>
+    public void EquipMelee(WeaponData weapon)
+    {
+        CurrentMelee = weapon;
+        _isMeleeSwinging = false;
+        _meleeSwingProgress = 0f;
+
+        // Swap melee model on the left-hand mount
+        _meleeModelInstance?.QueueFree();
+        _meleeModelInstance = null;
+        if (weapon.WeaponModelScene != null)
+        {
+            _meleeModelInstance = weapon.WeaponModelScene.Instantiate<Node3D>();
+            _meleeMount.AddChild(_meleeModelInstance);
+        }
+
+        EmitSignal(SignalName.MeleeWeaponChanged);
     }
 
     public void AddAmmo(int amount)
@@ -257,16 +447,66 @@ public partial class Player : RigidBody3D
 
         float now = (float)Time.GetTicksMsec() / 1000f;
         if (now < _nextJumpTime) return;
+        if (Energy < JumpEnergyCost) return;  // not enough energy
 
+        ConsumeEnergy(JumpEnergyCost);
         ApplyCentralImpulse(Vector3.Up * JumpForce);
         _nextJumpTime = now + JumpCooldown;
     }
 
     private void HandleBrake()
     {
-        if (!Input.IsActionPressed(InputActions.Brake)) return;
-        // Freeze horizontal velocity but preserve vertical (gravity/jump)
+        if (!Input.IsActionJustPressed(InputActions.Brake)) return;
+        if (Energy < BrakeEnergyCost) return;  // not enough energy
+
+        ConsumeEnergy(BrakeEnergyCost);
         LinearVelocity = new Vector3(0, LinearVelocity.Y, 0);
+    }
+
+    private void ConsumeEnergy(float amount)
+    {
+        Energy = Mathf.Max(0f, Energy - amount);
+        EmitSignal(SignalName.EnergyChanged, Energy);
+    }
+
+    private void RegenerateEnergy(float delta)
+    {
+        if (Energy >= MaxEnergy) return;
+        Energy = Mathf.Min(MaxEnergy, Energy + EnergyRegenRate * delta);
+        EmitSignal(SignalName.EnergyChanged, Energy);
+    }
+
+    /// <summary>
+    /// Raycast from the player ball to the camera's desired position.
+    /// If a wall is in the way, pull the camera forward so the player
+    /// is never occluded. Uses lerp for smooth transitions.
+    /// </summary>
+    private void AdjustCameraForWalls()
+    {
+        var playerPos = GlobalPosition;
+        // Compute where the camera WANTS to be (default offset)
+        _camera.Position = _defaultCameraLocalPos;
+        var desiredCamPos = _camera.GlobalPosition;
+
+        var spaceState = GetWorld3D().DirectSpaceState;
+        var query = PhysicsRayQueryParameters3D.Create(playerPos, desiredCamPos);
+        query.CollisionMask = 1; // walls only (layer 1)
+        query.CollideWithAreas = false;
+        query.CollideWithBodies = true;
+
+        var result = spaceState.IntersectRay(query);
+        if (result.Count > 0)
+        {
+            // Wall hit — move camera to just in front of the hit point
+            var hitPos = (Vector3)result["position"];
+            var hitNormal = (Vector3)result["normal"];
+            var safeCamPos = hitPos + hitNormal * 0.3f; // 0.3m off the wall
+
+            // Convert to local space of the CameraArm
+            var localPos = _camera.GetParent<Node3D>().ToLocal(safeCamPos);
+            _camera.Position = localPos;
+        }
+        // else: no wall, camera stays at default position (already set above)
     }
 
     private void ClampToBoundary()
@@ -333,6 +573,119 @@ public partial class Player : RigidBody3D
         }
     }
 
+    // ── Screen-Center Aiming ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Raycast from the camera through viewport center to find where the
+    /// player is actually aiming. Updates the weapon mount and laser to
+    /// point at that world position, so bullets go where the reticle is.
+    ///
+    /// The ray checks enemies, walls, AND terrain. Terrain is essential:
+    /// without it, the far-point fallback sits 200m along the camera
+    /// direction — even 1° below horizontal puts that point meters
+    /// underground, pulling every bullet into the dirt.
+    ///
+    /// With terrain in the ray, the aim point lands exactly where the
+    /// reticle visually sits on the ground. Bullets travel from the weapon
+    /// mount to that surface point — a shallow, natural trajectory that
+    /// only hits the ground where the player is actually looking.
+    ///
+    /// MinAimDistance prevents the old close-range problem where the
+    /// camera ray hit dirt between the camera and the player.
+    /// </summary>
+    private const float MinAimDistance = 3f;
+
+    private void UpdateAimPoint()
+    {
+        // Screen center in viewport coordinates
+        var viewport = GetViewport();
+        var screenCenter = viewport.GetVisibleRect().Size / 2f;
+
+        // Project a ray from the camera through screen center
+        var camOrigin = _camera.ProjectRayOrigin(screenCenter);
+        var dir       = _camera.ProjectRayNormal(screenCenter);
+
+        // Start the ray from just in front of the player (not from the camera
+        // behind the player) so we don't hit the ground between them.
+        var playerPos = GlobalPosition;
+        float t = (playerPos - camOrigin).Dot(dir);
+        var rayStart = camOrigin + dir * Mathf.Max(t - 0.5f, 0f);
+
+        // Raycast for enemies, walls, AND terrain.
+        var spaceState = GetWorld3D().DirectSpaceState;
+        var query = PhysicsRayQueryParameters3D.Create(rayStart, rayStart + dir * AimRayLength);
+        query.CollisionMask = 1 | 4 | 32; // walls + enemies + terrain
+        query.CollideWithAreas = false;
+        query.CollideWithBodies = true;
+        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+
+        var farPoint = camOrigin + dir * AimRayLength;
+        var result = spaceState.IntersectRay(query);
+        if (result.Count > 0)
+        {
+            var hitPos = (Vector3)result["position"];
+            float distToPlayer = (hitPos - playerPos).Length();
+
+            // Ignore hits too close to the player (prevents aiming at
+            // the dirt between the camera and the player ball).
+            _aimPoint = distToPlayer < MinAimDistance ? farPoint : hitPos;
+        }
+        else
+        {
+            _aimPoint = farPoint;
+        }
+
+        // ── Validation raycast ───────────────────────────────────────────
+        // The camera sits ~2m higher than the weapon mount. On hilly terrain
+        // the camera ray can clear a ridge that the bullet (from the lower
+        // mount) would hit. Cast a second ray from the mount to _aimPoint:
+        // if something blocks the path, use that closer hit instead.
+        var mountPos = _weaponMount.GlobalPosition;
+        var toAim = _aimPoint - mountPos;
+        if (toAim.LengthSquared() > 1f)
+        {
+            var valQuery = PhysicsRayQueryParameters3D.Create(mountPos, _aimPoint);
+            valQuery.CollisionMask = 1 | 32; // walls + terrain (not enemies — we want to shoot over friendlies)
+            valQuery.CollideWithAreas = false;
+            valQuery.CollideWithBodies = true;
+            valQuery.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+
+            var valResult = spaceState.IntersectRay(valQuery);
+            if (valResult.Count > 0)
+            {
+                var valHit = (Vector3)valResult["position"];
+                // Only override if the obstruction is meaningfully closer
+                // than the original aim point (avoids jitter from grazing hits)
+                if ((valHit - mountPos).LengthSquared() < toAim.LengthSquared() * 0.95f)
+                    _aimPoint = valHit;
+            }
+        }
+
+        // Orient the weapon mount to look toward the aim point
+        toAim = _aimPoint - mountPos;
+        if (toAim.LengthSquared() > 0.01f)
+        {
+            _weaponMount.LookAt(mountPos + toAim, Vector3.Up);
+        }
+
+        // Update laser ray to point at aim target
+        if (_laserRay.Enabled)
+        {
+            var localTarget = _laserRay.ToLocal(_aimPoint);
+            _laserRay.TargetPosition = localTarget;
+
+            // Update laser line visual to stretch toward aim point
+            if (_laserLine != null && _laserLine.Visible)
+            {
+                float dist = toAim.Length();
+                // The laser line is a cylinder along Y, rotated 90° to face -Z
+                // Scale its height to match the distance
+                _laserLine.Scale = new Vector3(1, dist / 50f, 1);
+                _laserLine.Position = new Vector3(0, 0, -dist / 2f);
+            }
+        }
+    }
+
     // ── Flashlight ───────────────────────────────────────────────────────
 
     private void HandleFlashlight()
@@ -347,16 +700,8 @@ public partial class Player : RigidBody3D
     private void HandleFire(double delta)
     {
         if (CurrentWeapon == null) return;
-        if (CurrentWeapon.Category == WeaponCategory.Melee)
-        {
-            // Melee: start swing on click
-            if (Input.IsActionJustPressed(InputActions.Fire) && !_isSwinging)
-            {
-                _isSwinging = true;
-                _swingProgress = 0f;
-            }
-            return;
-        }
+        // Melee weapons are now in a separate left-hand slot — ranged fire
+        // is always available if you have a ranged weapon equipped.
 
         // Ranged fire
         bool wantsToFire = CurrentWeapon.IsAutomatic
@@ -377,8 +722,21 @@ public partial class Player : RigidBody3D
         }
 
         // Fire based on weapon type
-        var origin = _bulletSpawn.GlobalPosition;
-        var forward = -_bulletSpawn.GlobalTransform.Basis.Z;
+        //
+        // Spawn bullets at the weapon mount's origin (not the barrel tip).
+        // The mount sits at a safe height above the ground. Using the barrel
+        // tip caused long guns (rifle, shotgun) to spawn bullets below
+        // ground level when the mount pitched down even slightly.
+        var origin = _weaponMount.GlobalPosition;
+
+        // Direction: always aim from the spawn point toward the reticle
+        // convergence point. When a target was hit, this converges on it.
+        // When nothing was hit, _aimPoint is far along the weapon arm's
+        // forward — so direction is effectively straight ahead.
+        var forward = (_aimPoint - origin).Normalized();
+
+        // Apply accuracy drift — add random angular deviation
+        forward = ApplyAccuracyDrift(forward);
 
         switch (CurrentWeapon.Type)
         {
@@ -404,9 +762,40 @@ public partial class Player : RigidBody3D
         _nextFireTime = now + CurrentWeapon.FireRate;
         EmitAmmoSignal();
 
-        // Play fire sound (reuses persistent AudioStreamPlayer3D)
-        if (_fireAudio.Stream != null)
-            _fireAudio.Play();
+        // Play fire sound using next available pool player (round-robin)
+        // This lets overlapping shots play simultaneously without clipping
+        var firePlayer = _fireAudioPool[_fireAudioIndex];
+        _fireAudioIndex = (_fireAudioIndex + 1) % FireAudioPoolSize;
+        if (firePlayer.Stream != null)
+            firePlayer.Play();
+
+        // Kick accuracy drift
+        _accuracyDrift = Mathf.Min(_accuracyDrift + DriftKickDeg, _accuracyDriftMax);
+        EmitSignal(SignalName.ShotFired);
+    }
+
+    /// <summary>
+    /// Applies random angular deviation to a firing direction based on
+    /// current accuracy drift. Returns the deviated direction.
+    /// </summary>
+    private Vector3 ApplyAccuracyDrift(Vector3 dir)
+    {
+        if (_accuracyDrift <= 0.01f) return dir;
+
+        float driftRad = Mathf.DegToRad(_accuracyDrift);
+        // Random angle around the forward axis
+        float randomAngle = (float)GD.RandRange(0, Mathf.Tau);
+        // Random magnitude within the drift cone
+        float randomMag = (float)GD.RandRange(0, driftRad);
+
+        // Rotate around an arbitrary perpendicular axis
+        var up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Right : Vector3.Up;
+        var perp = dir.Cross(up).Normalized();
+        var perp2 = dir.Cross(perp).Normalized();
+
+        var deviated = dir.Rotated(perp, randomMag * Mathf.Cos(randomAngle));
+        deviated = deviated.Rotated(perp2, randomMag * Mathf.Sin(randomAngle));
+        return deviated.Normalized();
     }
 
     // ── Reload ───────────────────────────────────────────────────────────
@@ -443,48 +832,134 @@ public partial class Player : RigidBody3D
 
     // ── Grenade ──────────────────────────────────────────────────────────
 
-    private void HandleGrenade()
+    private void HandleGrenade(double delta)
     {
-        if (!Input.IsActionJustPressed(InputActions.ThrowGrenade)) return;
-        if (Grenades <= 0) return;
+        // Start charging when G is pressed
+        if (Input.IsActionJustPressed(InputActions.ThrowGrenade) && Grenades > 0 && !_chargingGrenade)
+        {
+            _chargingGrenade = true;
+            _grenadeChargePower = 0f;
+            EmitSignal(SignalName.GrenadePowerChanged, 0f, true);
+            return;
+        }
 
-        Grenades--;
-        var forward = -_pivot.GlobalTransform.Basis.Z;
-        _wm.ThrowGrenade(_bulletSpawn.GlobalPosition, forward, 12f);
-        EmitAmmoSignal();
+        // While holding G, charge power
+        if (_chargingGrenade && Input.IsActionPressed(InputActions.ThrowGrenade))
+        {
+            _grenadeChargePower = Mathf.Min(1f, _grenadeChargePower + (float)delta / GrenadeChargeRate);
+            EmitSignal(SignalName.GrenadePowerChanged, _grenadeChargePower, true);
+            return;
+        }
+
+        // Release G — throw with accumulated power
+        if (_chargingGrenade && !Input.IsActionPressed(InputActions.ThrowGrenade))
+        {
+            _chargingGrenade = false;
+            Grenades--;
+            float speed = Mathf.Lerp(GrenadeMinSpeed, GrenadeMaxSpeed, _grenadeChargePower);
+            var forward = -_pivot.GlobalTransform.Basis.Z;
+            _wm.ThrowGrenade(_bulletSpawn.GlobalPosition, forward, speed);
+            EmitAmmoSignal();
+            EmitSignal(SignalName.GrenadePowerChanged, 0f, false);
+        }
     }
 
-    // ── Melee Swing ──────────────────────────────────────────────────────
+    // ── Melee Swing (Left-Hand, Right-Click) ───────────────────────────
 
     private void HandleMeleeSwing(double delta)
     {
-        if (!_isSwinging || CurrentWeapon == null) return;
-
-        _swingProgress += (float)delta / CurrentWeapon.SwingDuration;
-        var rot = _weaponMount.Rotation;
-        rot.Z = _swingProgress * Mathf.Tau; // 360° rotation
-        _weaponMount.Rotation = rot;
-
-        if (_swingProgress >= 1f)
+        // Animate ongoing swing
+        if (_isMeleeSwinging && CurrentMelee != null)
         {
-            _isSwinging = false;
-            _swingProgress = 0f;
-            rot.Z = 0f;
-            _weaponMount.Rotation = rot;
+            _meleeSwingProgress += (float)delta / CurrentMelee.SwingDuration;
+
+            // Swing arc: rotate the melee mount from -90° to +90° (180° arc in front)
+            float swingAngle = Mathf.Lerp(-Mathf.Pi / 2f, Mathf.Pi / 2f, _meleeSwingProgress);
+            var rot = _meleeMount.Rotation;
+            rot.Y = swingAngle;
+            _meleeMount.Rotation = rot;
+
+            // Deal damage at the midpoint of the swing (0.3–0.7 range)
+            if (_meleeSwingProgress >= 0.3f && _meleeSwingProgress <= 0.7f)
+            {
+                DealMeleeDamage();
+            }
+
+            if (_meleeSwingProgress >= 1f)
+            {
+                _isMeleeSwinging = false;
+                _meleeSwingProgress = 0f;
+                _meleeHitThisSwing.Clear();
+                rot.Y = 0f;
+                _meleeMount.Rotation = rot;
+            }
+            return;
+        }
+
+        // Start new swing on right-click
+        if (CurrentMelee == null) return;
+        if (!Input.IsActionJustPressed(InputActions.MeleeAttack)) return;
+
+        float now = (float)Time.GetTicksMsec() / 1000f;
+        if (now < _nextMeleeTime) return;
+
+        _isMeleeSwinging = true;
+        _meleeSwingProgress = 0f;
+        _meleeHitThisSwing.Clear();
+        _nextMeleeTime = now + CurrentMelee.MeleeCooldown;
+
+        // Play swing sound (reuse harpoon sound as a whoosh)
+        _meleeSwingAudio.Stream = GD.Load<AudioStream>(Assets.SfxHarpoon);
+        _meleeSwingAudio.Play();
+    }
+
+    /// <summary>
+    /// Sphere-cast in front of the player to find enemies within melee reach
+    /// and deal damage. Minecraft-style: hits everything in an arc in front.
+    /// </summary>
+    private readonly System.Collections.Generic.HashSet<ulong> _meleeHitThisSwing = new();
+
+    private void DealMeleeDamage()
+    {
+        if (CurrentMelee == null) return;
+
+        var forward = -_pivot.GlobalTransform.Basis.Z;
+        float reach = CurrentMelee.MeleeReach;
+
+        // Check all enemies in the scene
+        var enemies = GetTree().GetNodesInGroup(Groups.Enemies);
+        foreach (var node in enemies)
+        {
+            if (node is not Enemy enemy) continue;
+            if (_meleeHitThisSwing.Contains(enemy.GetInstanceId())) continue;
+
+            var toEnemy = enemy.GlobalPosition - GlobalPosition;
+            float dist = toEnemy.Length();
+            if (dist > reach) continue;
+
+            // Check if enemy is roughly in front (within ~120° cone)
+            float dot = forward.Dot(toEnemy.Normalized());
+            if (dot < 0.0f) continue; // behind the player
+
+            enemy.TakeDamage(CurrentMelee.SwingDamage);
+            _meleeHitThisSwing.Add(enemy.GetInstanceId());
+
+            // Knockback
+            if (enemy is RigidBody3D rb)
+            {
+                var knockDir = (toEnemy.Normalized() + Vector3.Up * 0.3f).Normalized();
+                rb.ApplyImpulse(knockDir * 8f);
+            }
         }
     }
 
     /// <summary>
-    /// Called by the melee weapon's Area3D when it overlaps an enemy during
-    /// a swing. This replaces the Unity pattern where SwingWeaponController
-    /// directly calls GameFunctions.DamageObject() on the enemy.
+    /// Legacy callback — no longer used. Melee damage is now handled by
+    /// DealMeleeDamage() via sphere-check.
     /// </summary>
     public void OnMeleeHit(Node3D body)
     {
-        if (!_isSwinging) return;
-        if (CurrentWeapon == null) return;
-        if (body is Enemy enemy)
-            enemy.TakeDamage(CurrentWeapon.SwingDamage);
+        // kept for compatibility, no-op
     }
 
     // ── Pause / Return ───────────────────────────────────────────────────
@@ -507,6 +982,23 @@ public partial class Player : RigidBody3D
     {
         EmitSignal(SignalName.Died);
         Input.MouseMode = Input.MouseModeEnum.Visible;
+
+        // Spawn a death explosion at the player's position
+        var explosion = _wm.SpawnExplosion(GlobalPosition);
+        explosion.Damage = 0f;           // cosmetic only
+        explosion.Force = 25f;           // knock nearby enemies away
+        explosion.ExplosionRadius = 6f;
+        explosion.IgnorePlayer = true;
+
+        // Hide the player ball and weapon
+        if (_playerMesh != null) _playerMesh.Visible = false;
+        _weaponModelInstance?.Set("visible", false);
+        if (_laserLine != null) _laserLine.Visible = false;
+
+        // Disable collision so the invisible ball doesn't block anything
+        var collisionShape = GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
+        if (collisionShape != null) collisionShape.Disabled = true;
+
         _gm.TriggerGameOver();
     }
 
@@ -521,7 +1013,9 @@ public partial class Player : RigidBody3D
 
     private void UpdateLaserVisibility()
     {
-        bool show = CurrentWeapon != null && CurrentWeapon.Category == WeaponCategory.Ranged;
+        // Laser only for Rifle and RocketLauncher — other weapons rely on reticle
+        bool show = CurrentWeapon != null && CurrentWeapon.Type is
+            WeaponType.Rifle or WeaponType.RocketLauncher;
         _laserRay.Enabled = show;
         if (_laserLine != null) _laserLine.Visible = show;
     }
@@ -536,63 +1030,53 @@ public partial class Player : RigidBody3D
     /// <summary>
     /// Creates four large semi-transparent planes at the play area boundary.
     /// They start invisible and fade in as the player approaches.
+    /// Uses BoxMesh (thin slabs) instead of PlaneMesh so orientation is trivial.
     /// </summary>
     private void CreateBoundaryWall()
     {
         float boundary = _gm.PlayerBoundary;
         float wallHeight = 20f;
-        float wallSize = boundary * 2f;
+        float wallLength = boundary * 2f;
+        float wallThickness = 0.05f;
 
         _boundaryMat = new StandardMaterial3D
         {
             AlbedoColor = new Color(1f, 0.2f, 0.1f, 0f), // start fully transparent
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            CullMode = BaseMaterial3D.CullModeEnum.Disabled, // visible from both sides
+            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             NoDepthTest = true,
         };
 
-        var wallMesh = new PlaneMesh
-        {
-            Size = new Vector2(wallSize, wallHeight),
-        };
-        wallMesh.Material = _boundaryMat;
-
-        // Four walls: +X, -X, +Z, -Z
-        var wallParent = new Node3D { Name = "BoundaryWalls" };
-        wallParent.TopLevel = true;
+        var wallParent = new Node3D { Name = "BoundaryWalls", TopLevel = true };
         AddChild(wallParent);
 
-        // Wall at +X edge
-        AddWallPanel(wallParent, wallMesh,
-            new Vector3(boundary, wallHeight / 2f, 0),
-            new Vector3(0, 0, Mathf.DegToRad(90f)));
+        // X-facing walls (span along Z, tall along Y)
+        var xWallMesh = new BoxMesh { Size = new Vector3(wallThickness, wallHeight, wallLength) };
+        xWallMesh.Material = _boundaryMat;
 
-        // Wall at -X edge
-        AddWallPanel(wallParent, wallMesh,
-            new Vector3(-boundary, wallHeight / 2f, 0),
-            new Vector3(0, 0, Mathf.DegToRad(-90f)));
+        // Z-facing walls (span along X, tall along Y)
+        var zWallMesh = new BoxMesh { Size = new Vector3(wallLength, wallHeight, wallThickness) };
+        zWallMesh.Material = _boundaryMat;
 
-        // Wall at +Z edge
-        AddWallPanel(wallParent, wallMesh,
-            new Vector3(0, wallHeight / 2f, boundary),
-            new Vector3(Mathf.DegToRad(-90f), 0, 0));
-
-        // Wall at -Z edge
-        AddWallPanel(wallParent, wallMesh,
-            new Vector3(0, wallHeight / 2f, -boundary),
-            new Vector3(Mathf.DegToRad(90f), 0, 0));
+        // +X wall
+        AddWallPanel(wallParent, xWallMesh, new Vector3(boundary, wallHeight / 2f, 0));
+        // -X wall
+        AddWallPanel(wallParent, xWallMesh, new Vector3(-boundary, wallHeight / 2f, 0));
+        // +Z wall
+        AddWallPanel(wallParent, zWallMesh, new Vector3(0, wallHeight / 2f, boundary));
+        // -Z wall
+        AddWallPanel(wallParent, zWallMesh, new Vector3(0, wallHeight / 2f, -boundary));
     }
 
-    private static void AddWallPanel(Node3D parent, PlaneMesh mesh, Vector3 position, Vector3 rotation)
+    private static void AddWallPanel(Node3D parent, BoxMesh mesh, Vector3 position)
     {
         var wall = new MeshInstance3D
         {
             Mesh = mesh,
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            Position = position,
         };
-        wall.Position = position;
-        wall.Rotation = rotation;
         parent.AddChild(wall);
     }
 

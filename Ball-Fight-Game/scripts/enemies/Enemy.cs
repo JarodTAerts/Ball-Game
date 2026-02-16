@@ -33,6 +33,7 @@ public partial class Enemy : RigidBody3D
 
 	private float _nextAttackTime;
 	private bool  _chasing;
+	private ShaderMaterial? _crackMat;
 
 	// Pre-loaded for death explosion
 	private static readonly PackedScene ExplosionScene =
@@ -96,7 +97,15 @@ public partial class Enemy : RigidBody3D
 		if (Stats != null)
 		{
 			Health = Stats.MaxHealth;
-			Scale = Vector3.One * Stats.Scale;
+
+			// Scale visual and collision children — NOT the RigidBody3D root
+			// (Godot RigidBody3D doesn't reliably support root-node scaling)
+			float s = Stats.Scale;
+			foreach (var child in GetChildren())
+			{
+				if (child is Node3D child3D)
+					child3D.Scale = Vector3.One * s;
+			}
 		}
 		else
 		{
@@ -164,6 +173,10 @@ public partial class Enemy : RigidBody3D
 		{
 			damageArea.BodyEntered += OnDamageBodyEntered;
 		}
+
+		// Attach crack overlay (Minecraft-style damage visualization)
+		float crackRadius = 0.52f * (Stats?.Scale ?? 1f);
+		_crackMat = DamageCrackOverlay.Attach(this, crackRadius);
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -219,6 +232,11 @@ public partial class Enemy : RigidBody3D
 	{
 		Health -= amount;
 		FlashHit();
+
+		// Update crack overlay
+		if (_crackMat != null)
+			DamageCrackOverlay.UpdateDamage(_crackMat, Health, Stats?.MaxHealth ?? 100f);
+
 		if (Health <= 0f)
 		{
 			Die();
@@ -246,8 +264,13 @@ public partial class Enemy : RigidBody3D
 		// Spawn confetti burst at death location (matches Unity's particle pop)
 		SpawnConfetti();
 
-		// Spawn explosion at death location
-		Wm.SpawnExplosion(GlobalPosition);
+		// Spawn explosion at death location — does NOT hurt the player
+		// (only grenade/rocket explosions should damage the player)
+		var explosion = Wm.SpawnExplosion(GlobalPosition);
+		explosion.IgnorePlayer = true;
+		explosion.Damage = 0f;          // cosmetic only
+		explosion.Force = 5f;           // small knockback on nearby enemies
+		explosion.ExplosionRadius = 3f; // small visual pop, not a combat blast
 		QueueFree();
 	}
 

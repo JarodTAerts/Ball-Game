@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3]
+
+[sub_resource type="StandardMaterial3D" id="blade_mat"]
+albedo_color = Color(0.7, 0.72, 0.75, 1)
+metallic = 0.8
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="blade_mesh"]
+size = Vector3(0.06, 0.4, 0.02)
+material = SubResource("blade_mat")
+
+[sub_resource type="StandardMaterial3D" id="guard_mat"]
+albedo_color = Color(0.35, 0.25, 0.15, 1)
+metallic = 0.4
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="guard_mesh"]
+size = Vector3(0.18, 0.03, 0.04)
+material = SubResource("guard_mat")
+
+[sub_resource type="StandardMaterial3D" id="handle_mat"]
+albedo_color = Color(0.25, 0.15, 0.08, 1)
+metallic = 0.2
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="handle_mesh"]
+size = Vector3(0.04, 0.12, 0.04)
+material = SubResource("handle_mat")
+
+[node name="Dagger" type="Node3D"]
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -0.15)
+mesh = SubResource("blade_mesh")
+
+[node name="Guard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.15)
+mesh = SubResource("guard_mesh")
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.08, -0.15)
+mesh = SubResource("handle_mesh")

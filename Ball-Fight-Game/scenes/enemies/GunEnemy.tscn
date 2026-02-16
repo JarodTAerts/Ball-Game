@@ -17,7 +17,7 @@ radius = 0.6
 
 [node name="GunEnemy" type="RigidBody3D"]
 collision_layer = 4
-collision_mask = 34
+collision_mask = 39
 script = ExtResource("1")
 Stats = ExtResource("2")
 

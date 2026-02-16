@@ -33,10 +33,13 @@ public partial class TerrainGenerator : StaticBody3D
     {
         AddToGroup(Groups.Terrain);
 
+        // Use random seed if none specified (0 = random)
+        int actualSeed = Seed != 0 ? Seed : (int)(GD.Randi());
+
         _noise = new FastNoiseLite
         {
             NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
-            Seed = Seed,
+            Seed = actualSeed,
             Frequency = 1f / NoiseScale,
         };
 

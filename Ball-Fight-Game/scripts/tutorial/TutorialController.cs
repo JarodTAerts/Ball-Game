@@ -1,131 +1,315 @@
 using Godot;
+using System.Collections.Generic;
 
 namespace BallFightGame;
 
 /// <summary>
-/// Tutorial controller. Drives a checkpoint-based progression system with
-/// timed auto-advance messages after all checkpoints are collected.
+/// Tutorial controller with a 5-phase progression system:
 ///
-/// Replaces Unity's TutorialController.cs + CheckPointController.cs.
-/// Key improvements:
-///   - Checkpoints use BodyEntered (one-shot) instead of OnTriggerStay
-///     (which fired every frame the player stood inside, skipping steps)
-///   - Data-driven message arrays instead of giant if/else chains
-///   - Single script manages the whole flow
+///   Phase 1 — Movement: collect checkpoints using WASD/Space/F
+///   Phase 2 — First Kill: one static enemy + handgun pickup, learn to shoot
+///   Phase 3 — Weapon Showcase: 10 static enemies + all weapons drop nearby
+///   Phase 4 — Moving Enemies: 3 standard enemies that actually chase
+///   Phase 5 — Enemy Types: showcase fast, big, and gun enemies
+///
+/// Each phase can be skipped with Alt+S. Phases auto-advance when objectives
+/// are met (all enemies killed, all checkpoints collected, etc.).
+/// Press X to return to menu at any time.
 /// </summary>
 public partial class TutorialController : Node
 {
-    [Signal] public delegate void TutorialMessageEventHandler(string message);
+	[Signal] public delegate void TutorialMessageEventHandler(string message);
 
-    [Export] public float AutoAdvanceInterval { get; set; } = 5f;
+	private enum Phase { Movement, FirstKill, WeaponShowcase, MovingEnemies, EnemyTypes, Complete }
 
-    private static readonly PackedScene HandgunPickupScene =
-        GD.Load<PackedScene>(Scenes.WeaponPickup);
-    private static readonly PackedScene EnemyScene =
-        GD.Load<PackedScene>(Scenes.EnemyNormal);
+	private Phase _phase = Phase.Movement;
+	private int   _checkpointsCollected;
+	private int   _phaseEnemiesAlive;
 
-    // Checkpoint messages (indexed by checkpoint number)
-    private readonly string[] _checkpointMessages =
-    {
-        "Welcome to the tutorial. Let's start by rolling around using the 'WASD' keys and collecting the purple checkpoints.",
-        "", // checkpoint 1 — no new message, just collect
-        "You can jump by pressing Space. After jumping there is a short recovery time where you cannot jump.",
-        "", // checkpoint 3
-        "Pressing 'F' will turn off and on your flashlight if you need it.",
-        "", // checkpoint 5 — triggers weapon spawn
-    };
+	private GameManager   _gm = null!;
+	private WeaponManager _wm = null!;
 
-    // Post-checkpoint auto-advance messages
-    private readonly string[] _combatMessages =
-    {
-        "An enemy has just spawned! Aim and shoot with the mouse to kill it.",
-        "Notice the ammo counter in the lower left. The left number is the loaded ammo, the right is your total ammo.",
-        "When you run out of loaded ammo you must press 'R' to reload. It will then take a second to reload.",
-        "If your total ammo is running low you can collect boxes like the one in the center to get more.",
-        "You can also press 'P' at any time during the game to pause.",
-        "When you are finished messing around press 'X' to return to the menu and play.",
-    };
+	// Pre-loaded enemy scenes
+	private static readonly PackedScene NormalScene = GD.Load<PackedScene>(Scenes.EnemyNormal);
+	private static readonly PackedScene FastScene   = GD.Load<PackedScene>(Scenes.EnemyFast);
+	private static readonly PackedScene BigScene    = GD.Load<PackedScene>(Scenes.EnemyBig);
+	private static readonly PackedScene GunScene    = GD.Load<PackedScene>(Scenes.EnemyGun);
 
-    private int  _checkpointsCollected;
-    private int  _combatMessageIndex;
-    private bool _checkpointsComplete;
-    private bool _combatPhaseStarted;
-    private Timer _autoAdvanceTimer = null!;
+	// Weapon resource paths for the showcase
+	private static readonly string[] AllWeaponPaths =
+	{
+		"res://resources/weapons/dagger.tres",
+		"res://resources/weapons/handgun.tres",
+		"res://resources/weapons/shotgun.tres",
+		"res://resources/weapons/rifle.tres",
+		"res://resources/weapons/sword.tres",
+		"res://resources/weapons/axe.tres",
+		"res://resources/weapons/rocket_launcher.tres",
+	};
 
-    private GameManager _gm = null!;
+	public override void _Ready()
+	{
+		_gm = GetNode<GameManager>("/root/GameManager");
+		_wm = GetNode<WeaponManager>("/root/WeaponManager");
 
-    public override void _Ready()
-    {
-        _gm = GetNode<GameManager>("/root/GameManager");
+		ShowMessage("Welcome! Move around using WASD. Collect the purple checkpoints to continue. (Alt+S to skip)");
+	}
 
-        _autoAdvanceTimer = new Timer
-        {
-            WaitTime = AutoAdvanceInterval,
-            OneShot = false,
-        };
-        _autoAdvanceTimer.Timeout += OnAutoAdvanceTick;
-        AddChild(_autoAdvanceTimer);
+	public override void _Input(InputEvent @event)
+	{
+		// Alt+S skips to next phase
+		if (@event is InputEventKey key
+			&& key.Pressed && !key.Echo
+			&& key.AltPressed
+			&& (key.Keycode == Key.S || key.PhysicalKeycode == Key.S))
+		{
+			SkipToNextPhase();
+			GetViewport().SetInputAsHandled();
+		}
+	}
 
-        // Show the first message
-        ShowCheckpointMessage(0);
-    }
+	public override void _UnhandledInput(InputEvent @event)
+	{
+		if (@event.IsActionPressed(InputActions.ReturnToMenu))
+			_gm.ReturnToMenu();
+	}
 
-    public override void _UnhandledInput(InputEvent @event)
-    {
-        // X returns to menu from tutorial (matches Unity)
-        if (@event.IsActionPressed(InputActions.ReturnToMenu))
-            _gm.ReturnToMenu();
-    }
+	// ── Phase Transitions ────────────────────────────────────────────────
 
-    /// <summary>
-    /// Called by Checkpoint nodes when the player enters them.
-    /// </summary>
-    public void OnCheckpointCollected()
-    {
-        _checkpointsCollected++;
-        ShowCheckpointMessage(_checkpointsCollected);
+	private void SkipToNextPhase()
+	{
+		// Kill all remaining phase enemies
+		ClearPhaseEnemies();
 
-        // After 6 checkpoints (indices 0–5), spawn weapon and enemy
-        if (_checkpointsCollected >= 6 && !_combatPhaseStarted)
-            StartCombatPhase();
-    }
+		switch (_phase)
+		{
+			case Phase.Movement:
+				// Remove remaining checkpoints
+				var checkpoints = GetTree().CurrentScene.GetNodeOrNull("Checkpoints");
+				if (checkpoints != null)
+					foreach (var c in checkpoints.GetChildren())
+						c.QueueFree();
+				StartPhase2();
+				break;
 
-    private void ShowCheckpointMessage(int index)
-    {
-        if (index < _checkpointMessages.Length && _checkpointMessages[index].Length > 0)
-            EmitSignal(SignalName.TutorialMessage, _checkpointMessages[index]);
-    }
+			case Phase.FirstKill:
+				StartPhase3();
+				break;
 
-    private void StartCombatPhase()
-    {
-        _combatPhaseStarted = true;
+			case Phase.WeaponShowcase:
+				StartPhase4();
+				break;
 
-        // Spawn a HandGun for the player to pick up
-        var wm = GetNode<WeaponManager>("/root/WeaponManager");
-        var handgun = GD.Load<WeaponData>("res://resources/weapons/handgun.tres");
-        wm.SpawnDrop(handgun, 15, 60, Vector3.Zero);
+			case Phase.MovingEnemies:
+				StartPhase5();
+				break;
 
-        // Spawn an enemy to fight
-        var enemy = EnemyScene.Instantiate<Node3D>();
-        GetTree().CurrentScene.AddChild(enemy);
-        enemy.GlobalPosition = new Vector3(20, 1, 20);
+			case Phase.EnemyTypes:
+				StartComplete();
+				break;
+		}
+	}
 
-        // Start auto-advancing combat messages
-        _combatMessageIndex = 0;
-        EmitSignal(SignalName.TutorialMessage, _combatMessages[0]);
-        _autoAdvanceTimer.Start();
-    }
+	/// <summary>
+	/// Called by Checkpoint nodes when the player enters them.
+	/// </summary>
+	public void OnCheckpointCollected()
+	{
+		_checkpointsCollected++;
 
-    private void OnAutoAdvanceTick()
-    {
-        _combatMessageIndex++;
-        if (_combatMessageIndex < _combatMessages.Length)
-        {
-            EmitSignal(SignalName.TutorialMessage, _combatMessages[_combatMessageIndex]);
-        }
-        else
-        {
-            _autoAdvanceTimer.Stop();
-        }
-    }
+		if (_checkpointsCollected == 1)
+			ShowMessage("Great! Keep collecting checkpoints. Try pressing Space to jump.");
+		else if (_checkpointsCollected == 2)
+			ShowMessage("Press F to toggle your flashlight. Collect the last checkpoint to continue.");
+
+		if (_checkpointsCollected >= 3 && _phase == Phase.Movement)
+			StartPhase2();
+	}
+
+	// ── Phase 2: First Kill ──────────────────────────────────────────────
+
+	private void StartPhase2()
+	{
+		_phase = Phase.FirstKill;
+		ShowMessage("A weapon and a stationary enemy have appeared. Press Q near the weapon to pick it up, then left-click to shoot the enemy!");
+
+		// Spawn handgun near the player
+		var handgun = GD.Load<WeaponData>("res://resources/weapons/handgun.tres");
+		_wm.SpawnDrop(handgun, 15, 120, new Vector3(3, 1, 0));
+
+		// Spawn one static enemy (chase speed = 0)
+		SpawnStaticEnemy(new Vector3(15, 1, 0));
+	}
+
+	// ── Phase 3: Weapon Showcase ─────────────────────────────────────────
+
+	private void StartPhase3()
+	{
+		_phase = Phase.WeaponShowcase;
+		_phaseEnemiesAlive = 0;
+
+		ShowMessage("10 stationary enemies have spawned around you. All weapons have been dropped nearby — pick them up with Q and try them all! Right-click to swing melee weapons.");
+
+		// Spawn 10 static enemies in a ring
+		for (int i = 0; i < 10; i++)
+		{
+			float angle = i * Mathf.Tau / 10f;
+			float dist = 15f + (float)GD.RandRange(0, 10);
+			var pos = new Vector3(Mathf.Cos(angle) * dist, 1, Mathf.Sin(angle) * dist);
+			SpawnStaticEnemy(pos);
+		}
+
+		// Drop all weapons in a circle around the player, well spaced apart
+		for (int i = 0; i < AllWeaponPaths.Length; i++)
+		{
+			var weapon = GD.Load<WeaponData>(AllWeaponPaths[i]);
+			if (weapon == null) continue;
+
+			float angle = i * Mathf.Tau / AllWeaponPaths.Length;
+			float radius = 10f;
+			var dropPos = new Vector3(Mathf.Cos(angle) * radius, 1, Mathf.Sin(angle) * radius);
+			_wm.SpawnDrop(weapon, weapon.MagazineCapacity, weapon.MagazineCapacity * 4,
+				dropPos);
+		}
+	}
+
+	// ── Phase 4: Moving Enemies ──────────────────────────────────────────
+
+	private void StartPhase4()
+	{
+		_phase = Phase.MovingEnemies;
+		_phaseEnemiesAlive = 0;
+
+		ShowMessage("Now for the real deal — 3 enemies that actually chase you! They'll roll toward you and deal contact damage. Keep moving and shoot them down.");
+
+		// Spawn 3 normal enemies at different distances
+		SpawnMovingEnemy(NormalScene, new Vector3(20, 1, 0));
+		SpawnMovingEnemy(NormalScene, new Vector3(-15, 1, 15));
+		SpawnMovingEnemy(NormalScene, new Vector3(0, 1, -20));
+	}
+
+	// ── Phase 5: Enemy Types ─────────────────────────────────────────────
+
+	private void StartPhase5()
+	{
+		_phase = Phase.EnemyTypes;
+		_phaseEnemiesAlive = 0;
+
+		ShowMessage("Different enemy types! Orange = Fast (low health, high speed). Dark Red = Big (high health, slow). Purple = Gun Enemy (shoots back!). Take them all out!");
+
+		// Spawn one of each special type + one normal
+		SpawnMovingEnemy(FastScene, new Vector3(18, 1, 10));
+		SpawnMovingEnemy(BigScene,  new Vector3(-18, 1, -10));
+		SpawnMovingEnemy(GunScene,  new Vector3(0, 1, 22));
+		SpawnMovingEnemy(NormalScene, new Vector3(-10, 1, -18));
+	}
+
+	// ── Complete ─────────────────────────────────────────────────────────
+
+	private void StartComplete()
+	{
+		_phase = Phase.Complete;
+		ShowMessage("Tutorial complete! You've learned all the basics. Press X to return to the menu and start playing for real!");
+	}
+
+	// ── Enemy Spawning Helpers ───────────────────────────────────────────
+
+	/// <summary>
+	/// Spawn a normal enemy with ChaseSpeed=0 so it sits still.
+	/// Duplicates the EnemyData resource so the shared resource isn't mutated.
+	/// </summary>
+	private void SpawnStaticEnemy(Vector3 position)
+	{
+		var enemy = NormalScene.Instantiate<Enemy>();
+		GetTree().CurrentScene.AddChild(enemy);
+		enemy.GlobalPosition = position;
+
+		// Duplicate the stats resource and zero out chase speed
+		if (enemy.Stats != null)
+		{
+			var staticStats = (EnemyData)enemy.Stats.Duplicate();
+			staticStats.ChaseSpeed = 0f;
+			enemy.Stats = staticStats;
+		}
+
+		_phaseEnemiesAlive++;
+		_gm.RegisterEnemySpawned();
+		enemy.Killed += () => OnPhaseEnemyKilled();
+	}
+
+	/// <summary>
+	/// Spawn a moving enemy (normal behavior) and track it for phase progression.
+	/// </summary>
+	private void SpawnMovingEnemy(PackedScene scene, Vector3 position)
+	{
+		var enemy = scene.Instantiate<Enemy>();
+		GetTree().CurrentScene.AddChild(enemy);
+		enemy.GlobalPosition = position;
+		_phaseEnemiesAlive++;
+		_gm.RegisterEnemySpawned();
+		enemy.Killed += () => OnPhaseEnemyKilled();
+	}
+
+	private void OnPhaseEnemyKilled()
+	{
+		_phaseEnemiesAlive--;
+		if (_phaseEnemiesAlive > 0) return;
+
+		// All enemies in this phase are dead — advance
+		switch (_phase)
+		{
+			case Phase.FirstKill:
+				ShowMessage("Nice shot! Let's try all the weapons now.");
+				// Small delay before the next phase to let the message read
+				var timer = new Timer { WaitTime = 2.5f, OneShot = true };
+				timer.Timeout += StartPhase3;
+				timer.Timeout += timer.QueueFree;
+				AddChild(timer);
+				timer.Start();
+				break;
+
+			case Phase.WeaponShowcase:
+				ShowMessage("All targets down! Now let's face enemies that fight back.");
+				var timer2 = new Timer { WaitTime = 2.5f, OneShot = true };
+				timer2.Timeout += StartPhase4;
+				timer2.Timeout += timer2.QueueFree;
+				AddChild(timer2);
+				timer2.Start();
+				break;
+
+			case Phase.MovingEnemies:
+				ShowMessage("Well done! One more round — different enemy types incoming.");
+				var timer3 = new Timer { WaitTime = 2.5f, OneShot = true };
+				timer3.Timeout += StartPhase5;
+				timer3.Timeout += timer3.QueueFree;
+				AddChild(timer3);
+				timer3.Start();
+				break;
+
+			case Phase.EnemyTypes:
+				StartComplete();
+				break;
+		}
+	}
+
+	/// <summary>
+	/// Kill all remaining enemies from the current phase (used by skip).
+	/// </summary>
+	private void ClearPhaseEnemies()
+	{
+		foreach (var node in GetTree().GetNodesInGroup(Groups.Enemies))
+		{
+			if (node is Enemy enemy)
+			{
+				enemy.QueueFree();
+				_gm.ActiveEnemies--;
+			}
+		}
+		_phaseEnemiesAlive = 0;
+	}
+
+	private void ShowMessage(string message)
+	{
+		EmitSignal(SignalName.TutorialMessage, message);
+	}
 }

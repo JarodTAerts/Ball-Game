@@ -24,7 +24,7 @@ public static class Scenes
 {
     public const string StartMenu    = "res://scenes/ui/StartMenu.tscn";
     public const string ArenaLevel   = "res://scenes/levels/ArenaLevel.tscn";
-    public const string OutdoorLevel = "res://scenes/levels/OutdoorLevel.tscn";
+    public const string HillsLevel   = "res://scenes/levels/HillsLevel.tscn";
     public const string CityLevel    = "res://scenes/levels/CityLevel.tscn";
     public const string Tutorial     = "res://scenes/levels/Tutorial.tscn";
 
@@ -90,6 +90,7 @@ public static class InputActions
     public const string Jump             = "jump";
     public const string Brake            = "brake";
     public const string Fire             = "fire";
+    public const string MeleeAttack      = "melee_attack";
     public const string Reload           = "reload";
     public const string Interact         = "interact";
     public const string ThrowGrenade     = "throw_grenade";

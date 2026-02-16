@@ -17,7 +17,12 @@ public partial class WeaponManager : Node
     private static readonly PackedScene RocketScene    = GD.Load<PackedScene>(Scenes.Rocket);
     private static readonly PackedScene GrenadeScene   = GD.Load<PackedScene>(Scenes.Grenade);
     private static readonly PackedScene ExplosionScene = GD.Load<PackedScene>(Scenes.Explosion);
-    private static readonly PackedScene PickupScene    = GD.Load<PackedScene>(Scenes.WeaponPickup);
+
+    // Lazy-loaded to avoid static initialization issues (WeaponPickup.cs
+    // references WeaponManager, creating a circular static dependency)
+    private static PackedScene? _pickupScene;
+    private static PackedScene PickupScene =>
+        _pickupScene ??= GD.Load<PackedScene>(Scenes.WeaponPickup);
 
     // ── Projectile Creation ──────────────────────────────────────────────
 
@@ -33,22 +38,17 @@ public partial class WeaponManager : Node
     }
 
     /// <summary>
-    /// Fire a shotgun blast: 2 volleys × 3 pellets each = 6 pellets total,
-    /// matching Unity's double-call to ShotgunShot(). Spread is ±10°.
+    /// Fire a shotgun blast: 5 pellets in a fan pattern.
     /// </summary>
     public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, string firedBy, float spreadDeg = 10f)
     {
         float spreadRad = Mathf.DegToRad(spreadDeg);
 
-        // Two volleys of 3 pellets each (matching Unity's 2× ShotgunShot calls)
-        for (int volley = 0; volley < 2; volley++)
+        // 5 pellets evenly spread from -2 to +2 units of spread
+        for (int i = -2; i <= 2; i++)
         {
-            // Center pellet
-            FireBullet(origin, forward, speed, damage, firedBy);
-            // Left pellet
-            FireBullet(origin, forward.Rotated(Vector3.Up, spreadRad), speed, damage, firedBy);
-            // Right pellet
-            FireBullet(origin, forward.Rotated(Vector3.Up, -spreadRad), speed, damage, firedBy);
+            var dir = forward.Rotated(Vector3.Up, spreadRad * i * 0.5f);
+            FireBullet(origin, dir, speed, damage, firedBy);
         }
     }
 
@@ -96,11 +96,21 @@ public partial class WeaponManager : Node
     /// This single method replaces Unity's DestroyCurrentCreateDrop() which
     /// had 6 copy-pasted if/else branches + OverlapSphere lookups.
     /// </summary>
-    public void SpawnDrop(WeaponData weapon, int loadedAmmo, int totalAmmo, Vector3 position)
+    public void SpawnDrop(WeaponData weapon, int loadedAmmo, int totalAmmo, Vector3 position, bool dropFromSky = true)
     {
-        var pickup = PickupScene.Instantiate<WeaponPickup>();
+        GD.Print("[WeaponManager] SpawnDrop called: ", weapon?.DisplayName ?? "null", " at ", position);
+        var scene = PickupScene;
+        if (scene == null)
+        {
+            GD.Print("[WeaponManager] ERROR: PickupScene is null! Path: ", Scenes.WeaponPickup);
+            return;
+        }
+        var pickup = scene.Instantiate<WeaponPickup>();
+        pickup.DropFromSky = dropFromSky;
+        GD.Print("[WeaponManager] Pickup instantiated");
         GetTree().CurrentScene.AddChild(pickup);
         pickup.GlobalPosition = position;
         pickup.Initialize(weapon, loadedAmmo, totalAmmo);
+        GD.Print("[WeaponManager] Pickup spawned at ", pickup.GlobalPosition);
     }
 }

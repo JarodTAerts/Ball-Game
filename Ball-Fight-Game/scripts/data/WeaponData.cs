@@ -10,6 +10,7 @@ public enum WeaponType
     RocketLauncher,
     Sword,
     Axe,
+    Dagger,
 }
 
 public enum WeaponCategory
@@ -47,8 +48,10 @@ public partial class WeaponData : Resource
 
     // --- Melee stats ---
     [ExportGroup("Melee")]
-    [Export] public float SwingDuration { get; set; } = 1f;
-    [Export] public float SwingDamage   { get; set; } = 100f;
+    [Export] public float SwingDuration { get; set; } = 0.3f;
+    [Export] public float SwingDamage   { get; set; } = 25f;
+    [Export] public float MeleeReach    { get; set; } = 2.5f;  // how far the swing hits
+    [Export] public float MeleeCooldown { get; set; } = 0.6f;  // seconds between swings
 
     // --- Pickup / drop config ---
     [ExportGroup("Pickup")]
