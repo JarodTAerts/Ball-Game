@@ -30,8 +30,8 @@ public static class Scenes
 
     // Projectiles
     public const string Bullet    = "res://scenes/projectiles/Bullet.tscn";
-    public const string Rocket    = "res://scenes/projectiles/Rocket.tscn";
-    public const string Grenade   = "res://scenes/projectiles/Grenade.tscn";
+    public const string Rocket    = "res://scenes/projectiles/RocketV2.tscn";
+    public const string Grenade   = "res://scenes/projectiles/GrenadeV2.tscn";
     public const string Explosion = "res://scenes/projectiles/Explosion.tscn";
 
     // Pickups

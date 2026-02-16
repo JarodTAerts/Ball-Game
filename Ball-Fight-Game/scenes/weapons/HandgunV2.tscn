@@ -1,0 +1,53 @@
+[gd_scene format=3 uid="uid://dvul55p57uug4"]
+
+[sub_resource type="BoxMesh" id="grip"]
+size = Vector3(0.05, 0.15, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="grip_mat"]
+albedo_color = Color(0.15, 0.15, 0.15, 1)
+metallic = 0.2
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="barrel"]
+size = Vector3(0.25, 0.05, 0.05)
+
+[sub_resource type="StandardMaterial3D" id="barrel_mat"]
+albedo_color = Color(0.3, 0.3, 0.35, 1)
+metallic = 0.7
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="slide"]
+size = Vector3(0.15, 0.06, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="slide_mat"]
+albedo_color = Color(0.2, 0.2, 0.25, 1)
+metallic = 0.8
+roughness = 0.2
+
+[sub_resource type="CylinderMesh" id="muzzle"]
+top_radius = 0.015
+bottom_radius = 0.015
+height = 0.03
+
+[node name="HandgunV2" type="Node3D" unique_id=1751880136]
+transform = Transform3D(0, 0, 2, 0, 2, 0, -2, 0, 0, 0, 0, 0)
+
+[node name="Grip" type="MeshInstance3D" parent="." unique_id=860666128]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, -0.05, 0)
+mesh = SubResource("grip")
+surface_material_override/0 = SubResource("grip_mat")
+
+[node name="Barrel" type="MeshInstance3D" parent="." unique_id=1486902809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0, 0)
+mesh = SubResource("barrel")
+surface_material_override/0 = SubResource("barrel_mat")
+
+[node name="Slide" type="MeshInstance3D" parent="." unique_id=829124735]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.025, 0.01, 0)
+mesh = SubResource("slide")
+surface_material_override/0 = SubResource("slide_mat")
+
+[node name="Muzzle" type="MeshInstance3D" parent="." unique_id=1525448003]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.2, 0, 0)
+mesh = SubResource("muzzle")
+surface_material_override/0 = SubResource("barrel_mat")

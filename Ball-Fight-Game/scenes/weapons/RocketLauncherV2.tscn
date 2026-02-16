@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://b6t174h5xxrfa"]
+
+[sub_resource type="CylinderMesh" id="tube"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.8
+
+[sub_resource type="StandardMaterial3D" id="tube_mat"]
+albedo_color = Color(0.35, 0.4, 0.3, 1)
+metallic = 0.4
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="grip"]
+size = Vector3(0.06, 0.12, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="grip_mat"]
+albedo_color = Color(0.15, 0.15, 0.15, 1)
+metallic = 0.2
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="trigger_guard"]
+size = Vector3(0.08, 0.04, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="metal_mat"]
+albedo_color = Color(0.25, 0.25, 0.28, 1)
+metallic = 0.7
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="sight_front"]
+top_radius = 0.015
+bottom_radius = 0.015
+height = 0.04
+
+[sub_resource type="TorusMesh" id="muzzle_ring"]
+inner_radius = 0.07
+outer_radius = 0.09
+
+[sub_resource type="StandardMaterial3D" id="dark_metal"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+metallic = 0.8
+roughness = 0.25
+
+[node name="RocketLauncherV2" type="Node3D" unique_id=666328133]
+transform = Transform3D(0, 0, 2, 0, 2, 0, -2, 0, 0, 0, 0, 0)
+
+[node name="Tube" type="MeshInstance3D" parent="." unique_id=470456834]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("tube")
+surface_material_override/0 = SubResource("tube_mat")
+
+[node name="Grip" type="MeshInstance3D" parent="." unique_id=1243152321]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.12, 0)
+mesh = SubResource("grip")
+surface_material_override/0 = SubResource("grip_mat")
+
+[node name="TriggerGuard" type="MeshInstance3D" parent="." unique_id=1404616016]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, -0.06, 0)
+mesh = SubResource("trigger_guard")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="SightFront" type="MeshInstance3D" parent="." unique_id=1111395306]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.1, 0)
+mesh = SubResource("sight_front")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="SightRear" type="MeshInstance3D" parent="." unique_id=716155004]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.1, 0)
+mesh = SubResource("sight_front")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="MuzzleRing" type="MeshInstance3D" parent="." unique_id=1023459269]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.41, 0, 0)
+mesh = SubResource("muzzle_ring")
+surface_material_override/0 = SubResource("dark_metal")

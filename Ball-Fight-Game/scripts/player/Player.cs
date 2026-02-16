@@ -81,9 +81,11 @@ public partial class Player : RigidBody3D
     // Grenade charge state
     private bool  _chargingGrenade;
     private float _grenadeChargePower;   // 0.0 → 1.0
-    private const float GrenadeChargeRate = 1.5f;  // seconds from min to max
+    private float _grenadeChargeElapsed; // elapsed time while charging (for oscillation)
+    private const float GrenadeOscillationPeriod = 2.0f; // seconds for full 0→1→0 cycle
     private const float GrenadeMinSpeed   = 3f;    // barely tosses in front
     private const float GrenadeMaxSpeed   = 25f;   // ~30m throw with arc
+    private GrenadeArcPreview? _grenadeArcPreview; // trajectory visualization
 
     // Hit flash state
     private MeshInstance3D? _playerMesh;
@@ -202,6 +204,10 @@ public partial class Player : RigidBody3D
         AddChild(_dryFireAudio);
         _meleeSwingAudio = new AudioStreamPlayer3D { MaxDistance = 30f };
         AddChild(_meleeSwingAudio);
+
+        // Create grenade arc preview visualization
+        _grenadeArcPreview = new GrenadeArcPreview();
+        _pivot.AddChild(_grenadeArcPreview);
 
         // Attach crack overlay for damage visualization
         _crackMat = DamageCrackOverlay.Attach(this, 0.52f);
@@ -915,20 +921,34 @@ public partial class Player : RigidBody3D
         if (Input.IsActionJustPressed(InputActions.ThrowGrenade) && Grenades > 0 && !_chargingGrenade)
         {
             _chargingGrenade = true;
+            _grenadeChargeElapsed = 0f;
             _grenadeChargePower = 0f;
             EmitSignal(SignalName.GrenadePowerChanged, 0f, true);
             return;
         }
 
-        // While holding G, charge power
+        // While holding G, oscillate power in a sine wave pattern
         if (_chargingGrenade && Input.IsActionPressed(InputActions.ThrowGrenade))
         {
-            _grenadeChargePower = Mathf.Min(1f, _grenadeChargePower + (float)delta / GrenadeChargeRate);
+            _grenadeChargeElapsed += (float)delta;
+
+            // Sine wave oscillation: 0 → 1 → 0 over GrenadeOscillationPeriod
+            // Formula: sin(elapsed * π / period) gives 0→1→0 over one period
+            float t = _grenadeChargeElapsed / GrenadeOscillationPeriod;
+            _grenadeChargePower = Mathf.Sin(t * Mathf.Pi);
+            _grenadeChargePower = Mathf.Clamp(_grenadeChargePower, 0f, 1f);
+
             EmitSignal(SignalName.GrenadePowerChanged, _grenadeChargePower, true);
+
+            // Update arc preview visualization
+            float speed = Mathf.Lerp(GrenadeMinSpeed, GrenadeMaxSpeed, _grenadeChargePower);
+            var forward = -_pivot.GlobalTransform.Basis.Z;
+            _grenadeArcPreview?.UpdateArc(_bulletSpawn.GlobalPosition, forward, speed);
+
             return;
         }
 
-        // Release G — throw with accumulated power
+        // Release G — throw with current power
         if (_chargingGrenade && !Input.IsActionPressed(InputActions.ThrowGrenade))
         {
             _chargingGrenade = false;
@@ -938,6 +958,9 @@ public partial class Player : RigidBody3D
             _wm.ThrowGrenade(_bulletSpawn.GlobalPosition, forward, speed);
             EmitAmmoSignal();
             EmitSignal(SignalName.GrenadePowerChanged, 0f, false);
+
+            // Hide arc preview
+            _grenadeArcPreview?.Hide();
         }
     }
 
@@ -950,10 +973,20 @@ public partial class Player : RigidBody3D
         {
             _meleeSwingProgress += (float)delta / CurrentMelee.SwingDuration;
 
-            // Swing arc: rotate the melee mount from -90° to +90° (180° arc in front)
-            float swingAngle = Mathf.Lerp(-Mathf.Pi / 2f, Mathf.Pi / 2f, _meleeSwingProgress);
+            // Diagonal slash: top-left to bottom-right (45° angle)
+            // Start: rotated back and to the left
+            // End: rotated forward and to the right
+            float t = _meleeSwingProgress;
+
+            // Y-axis rotation: swing from left (-70°) to right (+70°)
+            float yAngle = Mathf.Lerp(-Mathf.Pi * 0.4f, Mathf.Pi * 0.4f, t);
+
+            // Z-axis rotation: swing from raised up-left (-45°) to down-right (+45°)
+            float zAngle = Mathf.Lerp(-Mathf.Pi / 4f, Mathf.Pi / 4f, t);
+
             var rot = _meleeMount.Rotation;
-            rot.Y = swingAngle;
+            rot.Y = yAngle;
+            rot.Z = zAngle;
             _meleeMount.Rotation = rot;
 
             // Deal damage at the midpoint of the swing (0.3–0.7 range)
@@ -968,6 +1001,7 @@ public partial class Player : RigidBody3D
                 _meleeSwingProgress = 0f;
                 _meleeHitThisSwing.Clear();
                 rot.Y = 0f;
+                rot.Z = 0f;
                 _meleeMount.Rotation = rot;
             }
             return;

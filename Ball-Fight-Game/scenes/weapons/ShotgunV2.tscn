@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://b0lnctj2koryq"]
+
+[sub_resource type="BoxMesh" id="stock"]
+size = Vector3(0.15, 0.08, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.4, 0.25, 0.15, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="receiver"]
+size = Vector3(0.15, 0.08, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="metal_mat"]
+albedo_color = Color(0.3, 0.3, 0.35, 1)
+metallic = 0.7
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="barrel"]
+top_radius = 0.025
+bottom_radius = 0.025
+height = 0.35
+
+[sub_resource type="BoxMesh" id="pump"]
+size = Vector3(0.08, 0.045, 0.055)
+
+[sub_resource type="StandardMaterial3D" id="dark_metal"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="CylinderMesh" id="barrel_tip"]
+top_radius = 0.025
+bottom_radius = 0.03
+height = 0.02
+
+[sub_resource type="StandardMaterial3D" id="barrel_tip_mat"]
+albedo_color = Color(0.15, 0.15, 0.18, 1)
+metallic = 0.9
+roughness = 0.2
+
+[node name="ShotgunV2" type="Node3D" unique_id=1009869026]
+transform = Transform3D(0, 0, 2, 0, 2, 0, -2, 0, 0, 0, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="." unique_id=1738417557]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -0.02, 0)
+mesh = SubResource("stock")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Receiver" type="MeshInstance3D" parent="." unique_id=734282986]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.025, 0, 0)
+mesh = SubResource("receiver")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Barrel" type="MeshInstance3D" parent="." unique_id=1951308450]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.225, 0, 0)
+mesh = SubResource("barrel")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Pump" type="MeshInstance3D" parent="." unique_id=749460579]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.02, 0)
+mesh = SubResource("pump")
+surface_material_override/0 = SubResource("dark_metal")
+
+[node name="BarrelTip" type="MeshInstance3D" parent="." unique_id=894694912]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.41, 0, 0)
+mesh = SubResource("barrel_tip")
+surface_material_override/0 = SubResource("barrel_tip_mat")

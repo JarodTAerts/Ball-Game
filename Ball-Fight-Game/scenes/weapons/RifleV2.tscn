@@ -1,0 +1,84 @@
+[gd_scene format=3 uid="uid://cphkkv0l66brj"]
+
+[sub_resource type="BoxMesh" id="stock"]
+size = Vector3(0.18, 0.08, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="dark_mat"]
+albedo_color = Color(0.15, 0.15, 0.15, 1)
+metallic = 0.3
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="receiver"]
+size = Vector3(0.22, 0.08, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="metal_mat"]
+albedo_color = Color(0.25, 0.28, 0.22, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="barrel"]
+top_radius = 0.025
+bottom_radius = 0.025
+height = 0.4
+
+[sub_resource type="BoxMesh" id="magazine"]
+size = Vector3(0.06, 0.12, 0.05)
+
+[sub_resource type="StandardMaterial3D" id="mag_mat"]
+albedo_color = Color(0.12, 0.12, 0.12, 1)
+metallic = 0.5
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="scope_base"]
+size = Vector3(0.08, 0.025, 0.04)
+
+[sub_resource type="CylinderMesh" id="scope_tube"]
+top_radius = 0.02
+bottom_radius = 0.02
+height = 0.12
+
+[sub_resource type="StandardMaterial3D" id="scope_mat"]
+albedo_color = Color(0.1, 0.1, 0.12, 1)
+metallic = 0.7
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="handguard"]
+size = Vector3(0.18, 0.055, 0.06)
+
+[node name="RifleV2" type="Node3D" unique_id=1926460162]
+transform = Transform3D(0, 0, 2, 0, 2, 0, -2, 0, 0, 0, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="." unique_id=109005981]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, -0.02, 0)
+mesh = SubResource("stock")
+surface_material_override/0 = SubResource("dark_mat")
+
+[node name="Receiver" type="MeshInstance3D" parent="." unique_id=835054379]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, 0, 0)
+mesh = SubResource("receiver")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Barrel" type="MeshInstance3D" parent="." unique_id=1404769893]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.31, 0, 0)
+mesh = SubResource("barrel")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Magazine" type="MeshInstance3D" parent="." unique_id=921802569]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, -0.08, 0)
+mesh = SubResource("magazine")
+surface_material_override/0 = SubResource("mag_mat")
+
+[node name="ScopeBase" type="MeshInstance3D" parent="." unique_id=657393969]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.05, 0.05, 0)
+mesh = SubResource("scope_base")
+surface_material_override/0 = SubResource("dark_mat")
+
+[node name="ScopeTube" type="MeshInstance3D" parent="." unique_id=1265811740]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.05, 0.09, 0)
+mesh = SubResource("scope_tube")
+surface_material_override/0 = SubResource("scope_mat")
+
+[node name="Handguard" type="MeshInstance3D" parent="." unique_id=577782985]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, -0.015, 0)
+mesh = SubResource("handguard")
+surface_material_override/0 = SubResource("dark_mat")

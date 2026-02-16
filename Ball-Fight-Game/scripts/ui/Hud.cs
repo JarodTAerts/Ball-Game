@@ -652,7 +652,7 @@ public partial class Hud : CanvasLayer
     {
         _gameOverOverlay.Visible = true;
         UpdateReticleVisibility();
-        OnMessage("Game Over! Press 'R' to restart. Press 'X' to return to the menu.");
+        OnMessage("Game Over! Press 'R' to restart.");
 
         // Show leaderboard with name entry (skip for tutorial — no scoring)
         var levelName = GetTree().CurrentScene.Name;
@@ -697,13 +697,6 @@ public partial class Hud : CanvasLayer
                 return;
             }
             _gm.TogglePause();
-            GetViewport().SetInputAsHandled();
-            return;
-        }
-
-        if (@event.IsActionPressed(InputActions.ReturnToMenu))
-        {
-            _gm.ReturnToMenu();
             GetViewport().SetInputAsHandled();
             return;
         }

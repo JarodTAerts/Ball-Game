@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/WeaponData.cs" id="1"]
 [ext_resource type="AudioStream" path="res://assets/sounds/gunshot.mp3" id="2"]
 [ext_resource type="AudioStream" path="res://assets/sounds/reload.mp3" id="3"]
-[ext_resource type="PackedScene" path="res://assets/models/weapons/Shotgun.fbx" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/ShotgunV2.tscn" id="4"]
 
 [resource]
 script = ExtResource("1")

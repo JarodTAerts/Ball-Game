@@ -1,0 +1,53 @@
+[gd_scene load_steps=8 format=3]
+
+[sub_resource type="BoxMesh" id="handle"]
+size = Vector3(0.03, 0.18, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="handle_mat"]
+albedo_color = Color(0.15, 0.1, 0.08, 1)
+metallic = 0.0
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="guard"]
+size = Vector3(0.15, 0.02, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="metal_mat"]
+albedo_color = Color(0.75, 0.75, 0.8, 1)
+metallic = 0.9
+roughness = 0.15
+
+[sub_resource type="PrismMesh" id="blade"]
+left_to_right = 0.0
+size = Vector3(0.025, 0.45, 0.035)
+
+[sub_resource type="SphereMesh" id="pommel"]
+radius = 0.025
+height = 0.05
+
+[sub_resource type="StandardMaterial3D" id="pommel_mat"]
+albedo_color = Color(0.6, 0.5, 0.25, 1)
+metallic = 0.7
+roughness = 0.3
+
+[node name="SwordV2" type="Node3D"]
+transform = Transform3D(0, 0, -2, 0, 2, 0, 2, 0, 0, 0, 0, 0)
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+mesh = SubResource("handle")
+surface_material_override/0 = SubResource("handle_mat")
+
+[node name="Guard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("guard")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.235, 0)
+mesh = SubResource("blade")
+surface_material_override/0 = SubResource("metal_mat")
+
+[node name="Pommel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+mesh = SubResource("pommel")
+surface_material_override/0 = SubResource("pommel_mat")

@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://dnu5xfsk00ljv"]
+
+[sub_resource type="CylinderMesh" id="handle"]
+top_radius = 0.02
+bottom_radius = 0.025
+height = 0.35
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.3, 0.2, 0.12, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="blade"]
+size = Vector3(0.22, 0.15, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="blade_mat"]
+albedo_color = Color(0.65, 0.65, 0.7, 1)
+metallic = 0.85
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="blade_detail"]
+size = Vector3(0.18, 0.12, 0.025)
+
+[node name="AxeV2" type="Node3D" unique_id=222776855]
+transform = Transform3D(0, 0, -2, 0, 2, 0, 2, 0, 0, 0, 0.35, 0)
+
+[node name="Handle" type="MeshInstance3D" parent="." unique_id=1280197565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+mesh = SubResource("handle")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Blade" type="MeshInstance3D" parent="." unique_id=739779306]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+mesh = SubResource("blade")
+surface_material_override/0 = SubResource("blade_mat")
+
+[node name="BladeDetail" type="MeshInstance3D" parent="." unique_id=1548067831]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0.01)
+mesh = SubResource("blade_detail")
+surface_material_override/0 = SubResource("wood_mat")

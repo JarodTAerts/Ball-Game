@@ -134,7 +134,7 @@ public partial class WeaponPickup : Area3D
                 var model = weapon.WeaponModelScene.Instantiate();
                 if (model is Node3D model3D)
                 {
-                    model3D.Scale = Vector3.One * 0.5f;
+                    model3D.Scale = Vector3.One * 1.0f;  // Changed from 0.5f to match 2x weapon scale
                     AddChild(model3D);
 
                     // Only hide the default mesh after the model is successfully added
