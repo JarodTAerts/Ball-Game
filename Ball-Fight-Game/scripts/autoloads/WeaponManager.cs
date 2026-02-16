@@ -52,30 +52,51 @@ public partial class WeaponManager : Node
     }
 
     /// <summary>
-    /// Fire a shotgun blast of tracer rounds: 5 pellets in a fan pattern.
+    /// Fire a shotgun blast of tracer rounds: 5 pellets in a 2D cone spread.
+    /// Spread pattern forms a cross/plus shape for better hit coverage.
     /// </summary>
     public void FireTracerShotgun(Vector3 origin, Vector3 forward, float maxRange,
-        float damage, string firedBy, float spreadDeg = 10f)
+        float damage, string firedBy, float spreadDeg = 5f)
     {
         float spreadRad = Mathf.DegToRad(spreadDeg);
-        for (int i = -2; i <= 2; i++)
+
+        // Center pellet (straight ahead)
+        FireTracer(origin, forward, maxRange, damage, firedBy);
+
+        // 4 pellets in cardinal directions (up, down, left, right)
+        var right = forward.Cross(Vector3.Up).Normalized();
+        var up = right.Cross(forward).Normalized();
+
+        for (int i = 0; i < 7; i++)
         {
-            var dir = forward.Rotated(Vector3.Up, spreadRad * i * 0.5f);
+            // Rotate around the barrel axis to create 90° spacing
+            float angle = i * Mathf.Pi / 2f;
+            var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
+            // Tilt the forward vector toward the spread axis
+            var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
             FireTracer(origin, dir, maxRange, damage, firedBy);
         }
     }
 
     /// <summary>
-    /// Fire a shotgun blast of physical bullets: 5 pellets in a fan pattern.
+    /// Fire a shotgun blast of physical bullets: 5 pellets in a 2D cone spread.
     /// </summary>
-    public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, string firedBy, float spreadDeg = 10f)
+    public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, string firedBy, float spreadDeg = 5f)
     {
         float spreadRad = Mathf.DegToRad(spreadDeg);
 
-        // 5 pellets evenly spread from -2 to +2 units of spread
-        for (int i = -2; i <= 2; i++)
+        // Center pellet
+        FireBullet(origin, forward, speed, damage, firedBy);
+
+        // 4 pellets in cardinal directions
+        var right = forward.Cross(Vector3.Up).Normalized();
+        var up = right.Cross(forward).Normalized();
+
+        for (int i = 0; i < 4; i++)
         {
-            var dir = forward.Rotated(Vector3.Up, spreadRad * i * 0.5f);
+            float angle = i * Mathf.Pi / 2f;
+            var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
+            var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
             FireBullet(origin, dir, speed, damage, firedBy);
         }
     }
