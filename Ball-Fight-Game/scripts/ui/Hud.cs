@@ -617,11 +617,14 @@ public partial class Hud : CanvasLayer
         UpdateReticleVisibility();
         OnMessage("Game Over! Press 'R' to restart. Press 'X' to return to the menu.");
 
-        // Show leaderboard with name entry
-        Input.MouseMode = Input.MouseModeEnum.Visible;
+        // Show leaderboard with name entry (skip for tutorial — no scoring)
         var levelName = GetTree().CurrentScene.Name;
-        _leaderboard ??= CreateLeaderboard();
-        _leaderboard.ShowWithEntry(_gm.Kills, levelName);
+        if (levelName != "Tutorial")
+        {
+            Input.MouseMode = Input.MouseModeEnum.Visible;
+            _leaderboard ??= CreateLeaderboard();
+            _leaderboard.ShowWithEntry(_gm.Kills, levelName);
+        }
     }
 
     private LeaderboardPanel CreateLeaderboard()

@@ -37,13 +37,28 @@ script = ExtResource("3")
 [node name="Checkpoints" type="Node3D" parent="."]
 
 [node name="Checkpoint1" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.5, 0)
 
 [node name="Checkpoint2" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.07, 0.5, 7.07)
 
 [node name="Checkpoint3" parent="Checkpoints" instance=ExtResource("5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 10)
+
+[node name="Checkpoint4" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.07, 0.5, 7.07)
+
+[node name="Checkpoint5" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.5, 0)
+
+[node name="Checkpoint6" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.07, 0.5, -7.07)
+
+[node name="Checkpoint7" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -10)
+
+[node name="Checkpoint8" parent="Checkpoints" instance=ExtResource("5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.07, 0.5, -7.07)
 
 [node name="Player" parent="." instance=ExtResource("1")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

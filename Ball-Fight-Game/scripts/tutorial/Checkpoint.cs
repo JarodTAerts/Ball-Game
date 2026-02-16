@@ -8,8 +8,8 @@ namespace BallFightGame;
 /// </summary>
 public partial class Checkpoint : Area3D
 {
-    private const float FloatHeight = 1.5f;
-    private const float BobAmplitude = 0.3f;
+    private const float FloatHeight = 0.6f;
+    private const float BobAmplitude = 0.15f;
     private const float BobSpeed = 2f;
 
     private TutorialController? _tutorial;

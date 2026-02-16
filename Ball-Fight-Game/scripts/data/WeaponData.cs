@@ -63,6 +63,15 @@ public partial class WeaponData : Resource
     [Export] public PackedScene? ProjectileScene { get; set; }
     [Export] public PackedScene? WeaponModelScene { get; set; }
 
+    // --- Mount adjustment ---
+    [ExportGroup("Mount")]
+    /// <summary>
+    /// Per-weapon offset applied after Z-centering. Allows fine-tuning
+    /// where the weapon sits relative to the mount point on the player.
+    /// X = left/right, Y = up/down, Z = forward/backward.
+    /// </summary>
+    [Export] public Vector3 MountOffset { get; set; } = Vector3.Zero;
+
     // --- Audio ---
     [ExportGroup("Audio")]
     [Export] public AudioStream? FireSound   { get; set; }

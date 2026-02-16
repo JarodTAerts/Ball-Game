@@ -1,4 +1,5 @@
 using Godot;
+using System;
 using System.Collections.Generic;
 
 namespace BallFightGame;
@@ -78,6 +79,9 @@ public partial class TutorialController : Node
 
 	private void SkipToNextPhase()
 	{
+		// Reset transition guard so we can advance immediately
+		_phaseTransitioning = false;
+
 		// Kill all remaining phase enemies
 		ClearPhaseEnemies();
 
@@ -119,10 +123,12 @@ public partial class TutorialController : Node
 
 		if (_checkpointsCollected == 1)
 			ShowMessage("Great! Keep collecting checkpoints. Try pressing Space to jump.");
-		else if (_checkpointsCollected == 2)
-			ShowMessage("Press F to toggle your flashlight. Collect the last checkpoint to continue.");
+		else if (_checkpointsCollected == 3)
+			ShowMessage("Press F to toggle your flashlight. Keep going!");
+		else if (_checkpointsCollected == 6)
+			ShowMessage("Almost there — just a couple more!");
 
-		if (_checkpointsCollected >= 3 && _phase == Phase.Movement)
+		if (_checkpointsCollected >= 8 && _phase == Phase.Movement)
 			StartPhase2();
 	}
 
@@ -250,46 +256,57 @@ public partial class TutorialController : Node
 		enemy.Killed += () => OnPhaseEnemyKilled();
 	}
 
+	private bool _phaseTransitioning;
+
 	private void OnPhaseEnemyKilled()
 	{
 		_phaseEnemiesAlive--;
 		if (_phaseEnemiesAlive > 0) return;
+
+		// Guard: if multiple enemies die in the same frame (e.g. explosion),
+		// each calls this. Only the first should trigger the transition.
+		if (_phaseTransitioning) return;
+		_phaseTransitioning = true;
 
 		// All enemies in this phase are dead — advance
 		switch (_phase)
 		{
 			case Phase.FirstKill:
 				ShowMessage("Nice shot! Let's try all the weapons now.");
-				// Small delay before the next phase to let the message read
-				var timer = new Timer { WaitTime = 2.5f, OneShot = true };
-				timer.Timeout += StartPhase3;
-				timer.Timeout += timer.QueueFree;
-				AddChild(timer);
-				timer.Start();
+				DelayedAdvance(StartPhase3);
 				break;
 
 			case Phase.WeaponShowcase:
 				ShowMessage("All targets down! Now let's face enemies that fight back.");
-				var timer2 = new Timer { WaitTime = 2.5f, OneShot = true };
-				timer2.Timeout += StartPhase4;
-				timer2.Timeout += timer2.QueueFree;
-				AddChild(timer2);
-				timer2.Start();
+				DelayedAdvance(StartPhase4);
 				break;
 
 			case Phase.MovingEnemies:
 				ShowMessage("Well done! One more round — different enemy types incoming.");
-				var timer3 = new Timer { WaitTime = 2.5f, OneShot = true };
-				timer3.Timeout += StartPhase5;
-				timer3.Timeout += timer3.QueueFree;
-				AddChild(timer3);
-				timer3.Start();
+				DelayedAdvance(StartPhase5);
 				break;
 
 			case Phase.EnemyTypes:
 				StartComplete();
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Delays a phase transition by 2.5 seconds so the player can read
+	/// the completion message. Clears the transition guard when done.
+	/// </summary>
+	private void DelayedAdvance(Action next)
+	{
+		var timer = new Timer { WaitTime = 2.5f, OneShot = true };
+		timer.Timeout += () =>
+		{
+			_phaseTransitioning = false;
+			next();
+			timer.QueueFree();
+		};
+		AddChild(timer);
+		timer.Start();
 	}
 
 	/// <summary>

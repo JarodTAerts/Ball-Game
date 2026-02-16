@@ -102,7 +102,6 @@ public partial class Player : RigidBody3D
     private WeaponManager _wm = null!;
     private Node3D        _pivot         = null!; // top_level node that follows position but not rotation
     private Node3D        _cameraArm     = null!;
-    private Node3D        _weaponArm     = null!;
     private Node3D        _weaponMount   = null!;
     private Marker3D      _bulletSpawn   = null!;
     private SpotLight3D   _flashlight    = null!;
@@ -154,13 +153,12 @@ public partial class Player : RigidBody3D
         // while the ball rolls freely.
         _pivot       = GetNode<Node3D>("Pivot");
         _cameraArm   = GetNode<Node3D>("Pivot/CameraArm");
-        _weaponArm   = GetNode<Node3D>("Pivot/WeaponArm");
-        _weaponMount = GetNode<Node3D>("Pivot/WeaponArm/WeaponMount");
-        _meleeMount  = GetNode<Node3D>("Pivot/WeaponArm/MeleeMount");
-        _bulletSpawn = GetNode<Marker3D>("Pivot/WeaponArm/WeaponMount/BulletSpawn");
+        _weaponMount = GetNode<Node3D>("Pivot/WeaponMount");
+        _meleeMount  = GetNode<Node3D>("Pivot/MeleeMount");
+        _bulletSpawn = GetNode<Marker3D>("Pivot/WeaponMount/BulletSpawn");
         _flashlight  = GetNode<SpotLight3D>("Pivot/FlashlightArm/SpotLight3D");
-        _laserRay    = GetNode<RayCast3D>("Pivot/WeaponArm/WeaponMount/LaserRay");
-        _laserLine   = GetNodeOrNull<MeshInstance3D>("Pivot/WeaponArm/WeaponMount/LaserRay/LaserLine");
+        _laserRay    = GetNode<RayCast3D>("Pivot/WeaponMount/LaserRay");
+        _laserLine   = GetNodeOrNull<MeshInstance3D>("Pivot/WeaponMount/LaserRay/LaserLine");
         _camera      = GetNode<Camera3D>("Pivot/CameraArm/Camera3D");
         _defaultCameraLocalPos = _camera.Position;  // (0, 2, 5)
 
@@ -228,9 +226,9 @@ public partial class Player : RigidBody3D
                 Mathf.DegToRad(PitchMax));
 
             SetArmPitch(_cameraArm, _pitch);
-            SetArmPitch(_weaponArm, _pitch);
-            // WeaponMount orientation is updated in UpdateAimPoint() to
-            // point at screen center, overriding the arm's inherited pitch.
+            // Weapon mount orientation is handled entirely by UpdateAimPoint()
+            // via LookAt — no arm pitch needed. The mount stays at a fixed
+            // height on the ball's equator and only rotates to aim.
         }
     }
 
@@ -322,11 +320,9 @@ public partial class Player : RigidBody3D
             _weaponModelInstance = weapon.WeaponModelScene.Instantiate<Node3D>();
             _weaponMount.AddChild(_weaponModelInstance);
 
-            // Center the model at its AABB midpoint so the mount origin sits
-            // at the weapon's center, not the handle. This prevents long
-            // barrels from extending far forward and dipping below the ground
-            // when the mount pitches down even slightly.
-            CenterWeaponModel(_weaponModelInstance);
+            // Center the model so its Z-midpoint sits at the mount origin,
+            // then apply any per-weapon offset from WeaponData.MountOffset.
+            CenterWeaponModel(_weaponModelInstance, weapon.MountOffset);
         }
 
         // Swap audio streams
@@ -350,44 +346,55 @@ public partial class Player : RigidBody3D
     }
 
     /// <summary>
-    /// Shifts a weapon model along the Z axis (barrel direction) so its
-    /// midpoint sits at the mount origin. This makes it look like the
-    /// player is gripping the center of the weapon rather than the handle,
-    /// preventing long barrels (rifle, shotgun) from extending far out
-    /// in front of the ball.
-    ///
-    /// Only the Z axis is adjusted — X and Y stay at zero so the weapon
-    /// doesn't shift sideways or vertically on the mount.
+    /// Centers a weapon model so its Z-axis midpoint sits at the mount
+    /// origin. The mount is on the ball's equator at (0.5, 0, 0) in
+    /// Pivot space, so half the barrel extends forward and half backward.
+    /// Then applies the per-weapon MountOffset for fine-tuning.
     /// </summary>
-    private static void CenterWeaponModel(Node3D model)
+    private static void CenterWeaponModel(Node3D model, Vector3 mountOffset)
     {
-        // Find the combined AABB of all MeshInstance3D children
+        // Recursively find the combined AABB of all MeshInstance3D nodes,
+        // accounting for all intermediate transforms (scale, rotation, position).
         Aabb? combined = null;
-        foreach (var child in model.GetChildren())
+
+        void WalkNode(Node node, Transform3D parentXform)
         {
-            if (child is MeshInstance3D meshInst && meshInst.Mesh != null)
+            if (node is Node3D n3d)
             {
-                var aabb = meshInst.Mesh.GetAabb();
-                // Transform the mesh AABB into the model's local space
-                aabb.Position += meshInst.Position;
-                combined = combined.HasValue
-                    ? combined.Value.Merge(aabb)
-                    : aabb;
+                var xform = parentXform * n3d.Transform;
+                if (n3d is MeshInstance3D meshInst && meshInst.Mesh != null)
+                {
+                    var meshAabb = meshInst.Mesh.GetAabb();
+                    // Transform all 8 corners to model-root space and expand
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var corner = new Vector3(
+                            (i & 1) == 0 ? meshAabb.Position.X : meshAabb.End.X,
+                            (i & 2) == 0 ? meshAabb.Position.Y : meshAabb.End.Y,
+                            (i & 4) == 0 ? meshAabb.Position.Z : meshAabb.End.Z);
+                        var worldCorner = xform * corner;
+                        combined = combined.HasValue
+                            ? combined.Value.Expand(worldCorner)
+                            : new Aabb(worldCorner, Vector3.Zero);
+                    }
+                }
+                foreach (var child in n3d.GetChildren())
+                    WalkNode(child, xform);
             }
         }
-        // Also check the model itself if it's a MeshInstance3D (single-mesh .fbx)
-        if (model is MeshInstance3D rootMesh && rootMesh.Mesh != null)
-        {
-            var aabb = rootMesh.Mesh.GetAabb();
-            combined = combined.HasValue ? combined.Value.Merge(aabb) : aabb;
-        }
+
+        // Start with identity — model itself is the root, its transform
+        // will be set by us (so we compute bounds in model-local space).
+        WalkNode(model, Transform3D.Identity);
 
         if (!combined.HasValue) return;
 
-        // Only center along Z (the barrel/length axis). Leave X and Y alone
-        // so the weapon doesn't shift sideways or vertically.
-        var center = combined.Value.GetCenter();
-        model.Position = new Vector3(0, 0, -center.Z);
+        // Center along Z only — puts the weapon's midpoint at the mount.
+        var aabb = combined.Value;
+        float zCenter = (aabb.Position.Z + aabb.End.Z) / 2f;
+
+        // Apply: Z-centering + per-weapon offset
+        model.Position = new Vector3(mountOffset.X, mountOffset.Y, -zCenter + mountOffset.Z);
     }
 
     /// <summary>
@@ -584,21 +591,7 @@ public partial class Player : RigidBody3D
     /// Raycast from the camera through viewport center to find where the
     /// player is actually aiming. Updates the weapon mount and laser to
     /// point at that world position, so bullets go where the reticle is.
-    ///
-    /// The ray checks enemies, walls, AND terrain. Terrain is essential:
-    /// without it, the far-point fallback sits 200m along the camera
-    /// direction — even 1° below horizontal puts that point meters
-    /// underground, pulling every bullet into the dirt.
-    ///
-    /// With terrain in the ray, the aim point lands exactly where the
-    /// reticle visually sits on the ground. Bullets travel from the weapon
-    /// mount to that surface point — a shallow, natural trajectory that
-    /// only hits the ground where the player is actually looking.
-    ///
-    /// MinAimDistance prevents the old close-range problem where the
-    /// camera ray hit dirt between the camera and the player.
     /// </summary>
-    private const float MinAimDistance = 3f;
 
     private void UpdateAimPoint()
     {
@@ -626,19 +619,7 @@ public partial class Player : RigidBody3D
 
         var farPoint = camOrigin + dir * AimRayLength;
         var result = spaceState.IntersectRay(query);
-        if (result.Count > 0)
-        {
-            var hitPos = (Vector3)result["position"];
-            float distToPlayer = (hitPos - playerPos).Length();
-
-            // Ignore hits too close to the player (prevents aiming at
-            // the dirt between the camera and the player ball).
-            _aimPoint = distToPlayer < MinAimDistance ? farPoint : hitPos;
-        }
-        else
-        {
-            _aimPoint = farPoint;
-        }
+        _aimPoint = result.Count > 0 ? (Vector3)result["position"] : farPoint;
 
         // ── Validation raycast ───────────────────────────────────────────
         // The camera sits ~2m higher than the weapon mount. On hilly terrain
@@ -666,7 +647,10 @@ public partial class Player : RigidBody3D
             }
         }
 
-        // Orient the weapon mount to look toward the aim point
+        // Orient the weapon mount to aim at the target.
+        // The mount stays at a fixed position on the ball's equator —
+        // only its rotation changes. This prevents the weapon from sinking
+        // into the ground when looking down.
         toAim = _aimPoint - mountPos;
         if (toAim.LengthSquared() > 0.01f)
         {
