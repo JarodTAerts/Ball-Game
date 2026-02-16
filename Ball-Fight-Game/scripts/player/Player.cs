@@ -33,6 +33,7 @@ public partial class Player : RigidBody3D
     [Signal] public delegate void GrenadePowerChangedEventHandler(float power, bool visible);
     [Signal] public delegate void ShotFiredEventHandler();
     [Signal] public delegate void MeleeWeaponChangedEventHandler();
+    [Signal] public delegate void ScopeChangedEventHandler(bool scoped, int scopeType, int reticleType);
 
     // ── Exports ──────────────────────────────────────────────────────────
     [ExportGroup("Movement")]
@@ -96,6 +97,16 @@ public partial class Player : RigidBody3D
     private float _accuracyDriftMax = 8f;    // max drift cap
     private const float DriftKickDeg    = 2.5f;  // degrees added per shot
     private const float DriftRecoverTime = 0.6f;  // seconds to fully recover
+
+    // Scope / ADS state
+    private bool  _isScoped;             // true while RMB held & weapon supports it
+    private float _scopeLerpT;           // 0 = hip, 1 = fully scoped (lerp progress)
+    private const float ScopeLerpSpeed = 10f;   // ~0.1s to full scope
+    private const float ScopedAccuracyCap = 0.15f; // max drift while scoped
+    private Vector3 _scopedCameraLocalPos; // target camera pos when scoped
+    private float   _defaultFov;           // Camera3D default FOV (stored in _Ready)
+    private float   _scopedFov;            // target FOV when scoped
+    public  float   ScopeLerp => _scopeLerpT; // public read-only for HUD
 
     // ── Cached node refs (set once in _Ready, never searched again) ──────
     private GameManager   _gm = null!;
@@ -161,6 +172,9 @@ public partial class Player : RigidBody3D
         _laserLine   = GetNodeOrNull<MeshInstance3D>("Pivot/WeaponMount/LaserRay/LaserLine");
         _camera      = GetNode<Camera3D>("Pivot/CameraArm/Camera3D");
         _defaultCameraLocalPos = _camera.Position;  // (0, 2, 5)
+        _defaultFov = _camera.Fov;
+        _scopedCameraLocalPos = _defaultCameraLocalPos;
+        _scopedFov = _defaultFov;
 
         // Initialise pivot position to match the ball
         _pivot.GlobalPosition = GlobalPosition;
@@ -253,6 +267,7 @@ public partial class Player : RigidBody3D
         if (_gm.GameOver) return;
         UpdateAimPoint();
         HandleFlashlight();
+        HandleScope(delta);
         HandleFire(delta);
         HandleReload();
         HandleGrenade(delta);
@@ -340,6 +355,35 @@ public partial class Player : RigidBody3D
             _                         => 0.5f,
         };
         _accuracyDrift = _accuracyDriftBase;
+
+        // Compute scoped camera position and FOV for this weapon
+        _scopedCameraLocalPos = weapon.ScopeStyle switch
+        {
+            ScopeType.Shoulder  => new Vector3(0.4f, 1.2f, 2.0f),
+            ScopeType.FullScope => new Vector3(0f, 0.8f, 1.5f),
+            _                   => _defaultCameraLocalPos,
+        };
+        _scopedFov = weapon.ScopeStyle switch
+        {
+            ScopeType.Shoulder  => _defaultFov * 0.87f,
+            ScopeType.FullScope => _defaultFov / Mathf.Max(weapon.ScopeZoom, 0.1f),
+            _                   => _defaultFov,
+        };
+
+        // Un-scope on weapon swap
+        if (_isScoped)
+        {
+            _isScoped = false;
+            _scopeLerpT = 0f;
+            _camera.Position = _defaultCameraLocalPos;
+            _camera.Fov = _defaultFov;
+
+            // Restore player visibility (may have been hidden for FullScope)
+            if (_playerMesh != null) _playerMesh.Visible = true;
+
+            EmitSignal(SignalName.ScopeChanged, false,
+                (int)weapon.ScopeStyle, (int)weapon.ScopeReticle);
+        }
 
         EmitSignal(SignalName.WeaponChanged);
         EmitAmmoSignal();
@@ -455,6 +499,7 @@ public partial class Player : RigidBody3D
 
     private void HandleJump()
     {
+        if (_isScoped) return;  // cannot jump while scoped
         if (!Input.IsActionJustPressed(InputActions.Jump)) return;
 
         float now = (float)Time.GetTicksMsec() / 1000f;
@@ -496,8 +541,9 @@ public partial class Player : RigidBody3D
     private void AdjustCameraForWalls()
     {
         var playerPos = GlobalPosition;
-        // Compute where the camera WANTS to be (default offset)
-        _camera.Position = _defaultCameraLocalPos;
+        // Compute where the camera WANTS to be (hip or scoped, based on lerp)
+        var desiredLocal = _defaultCameraLocalPos.Lerp(_scopedCameraLocalPos, _scopeLerpT);
+        _camera.Position = desiredLocal;
         var desiredCamPos = _camera.GlobalPosition;
 
         var spaceState = GetWorld3D().DirectSpaceState;
@@ -673,6 +719,48 @@ public partial class Player : RigidBody3D
                 _laserLine.Position = new Vector3(0, 0, -dist / 2f);
             }
         }
+    }
+
+    // ── Scope / ADS ────────────────────────────────────────────────────
+
+    private void HandleScope(double delta)
+    {
+        bool wantsScope = CurrentWeapon != null
+            && CurrentWeapon.ScopeStyle != ScopeType.None
+            && Input.IsActionPressed(InputActions.AimScope);
+
+        bool wasScoped = _isScoped;
+        _isScoped = wantsScope;
+
+        // Emit signal on state transitions only
+        if (_isScoped != wasScoped && CurrentWeapon != null)
+        {
+            EmitSignal(SignalName.ScopeChanged, _isScoped,
+                (int)CurrentWeapon.ScopeStyle, (int)CurrentWeapon.ScopeReticle);
+
+            // Hide player ball and weapon model in FullScope to avoid
+            // them filling the view when the camera is very close.
+            if (CurrentWeapon.ScopeStyle == ScopeType.FullScope)
+            {
+                if (_playerMesh != null)
+                    _playerMesh.Visible = !_isScoped;
+                if (_weaponModelInstance != null)
+                    _weaponModelInstance.Visible = !_isScoped;
+                if (_laserLine != null)
+                    _laserLine.Visible = !_isScoped && _laserRay.Enabled;
+            }
+        }
+
+        // Lerp toward target
+        float target = _isScoped ? 1f : 0f;
+        _scopeLerpT = Mathf.MoveToward(_scopeLerpT, target, ScopeLerpSpeed * (float)delta);
+
+        // Apply camera position and FOV (AdjustCameraForWalls uses _scopeLerpT too)
+        _camera.Fov = Mathf.Lerp(_defaultFov, _scopedFov, _scopeLerpT);
+
+        // Tighten accuracy while scoped
+        if (_isScoped)
+            _accuracyDrift = Mathf.Min(_accuracyDrift, ScopedAccuracyCap);
     }
 
     // ── Flashlight ───────────────────────────────────────────────────────
@@ -853,7 +941,7 @@ public partial class Player : RigidBody3D
         }
     }
 
-    // ── Melee Swing (Left-Hand, Right-Click) ───────────────────────────
+    // ── Melee Swing (Left-Hand, Caps Lock) ─────────────────────────────
 
     private void HandleMeleeSwing(double delta)
     {

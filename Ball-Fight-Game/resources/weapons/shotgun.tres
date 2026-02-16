@@ -26,3 +26,6 @@ InitialTotalAmmo = 18
 WeaponModelScene = ExtResource("4")
 FireSound = ExtResource("2")
 ReloadSound = ExtResource("3")
+ScopeStyle = 1
+ScopeZoom = 1.2
+ScopeReticle = 0

@@ -20,6 +20,27 @@ public enum WeaponCategory
 }
 
 /// <summary>
+/// What kind of ADS (aim down sights) this weapon uses.
+/// </summary>
+public enum ScopeType
+{
+    None,       // melee weapons, no ADS
+    Shoulder,   // handgun, shotgun — camera shifts toward weapon
+    FullScope,  // rifle, rocket launcher — circular scope overlay
+}
+
+/// <summary>
+/// Determines the reticle drawn inside the scope lens (and for Shoulder
+/// scope, which HUD reticle to display while aiming).
+/// </summary>
+public enum ScopeReticleType
+{
+    Default,    // use the weapon's normal HUD crosshair (even inside FullScope lens)
+    RedDot,     // small red filled circle at center + thin cross lines
+    FullCross,  // full-length cross lines spanning the lens diameter, no dot
+}
+
+/// <summary>
 /// Data container for all weapon stats. Stored as .tres resource files
 /// in res://resources/weapons/. The [GlobalClass] attribute makes this
 /// visible in the Godot inspector.
@@ -85,6 +106,22 @@ public partial class WeaponData : Resource
     [ExportGroup("Audio")]
     [Export] public AudioStream? FireSound   { get; set; }
     [Export] public AudioStream? ReloadSound { get; set; }
+
+    // --- Scope / ADS ---
+    [ExportGroup("Scope")]
+    /// <summary>
+    /// What kind of ADS this weapon uses.
+    ///   None       — no ADS (melee weapons)
+    ///   Shoulder   — over-the-shoulder zoom (handgun, shotgun)
+    ///   FullScope  — circular scope overlay with darkened surround (rifle, rocket launcher)
+    /// </summary>
+    [Export] public ScopeType ScopeStyle { get; set; } = ScopeType.None;
+
+    /// <summary>Zoom multiplier when scoped. 1.0 = no zoom. Rifle default = 1.5.</summary>
+    [Export] public float ScopeZoom { get; set; } = 1.0f;
+
+    /// <summary>Which reticle to draw when scoped. Only visually relevant for FullScope style.</summary>
+    [Export] public ScopeReticleType ScopeReticle { get; set; } = ScopeReticleType.Default;
 
     /// <summary>
     /// How many rounds an ammo pickup grants. In Unity this was

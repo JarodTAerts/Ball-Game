@@ -42,6 +42,9 @@ public partial class Hud : CanvasLayer
     // Leaderboard
     private LeaderboardPanel? _leaderboard;
 
+    // Scope overlay (FullScope weapons only)
+    private ScopeOverlay _scopeOverlay = null!;
+
     private GameManager _gm = null!;
     private Settings    _settings = null!;
 
@@ -78,6 +81,7 @@ public partial class Hud : CanvasLayer
         BuildPauseMenu();
         BuildOptionsMenu();
         BuildReticle();
+        BuildScopeOverlay();
 
         // Connect GameManager signals
         _gm.KillsChanged     += OnKillsChanged;
@@ -102,6 +106,12 @@ public partial class Hud : CanvasLayer
             _reticleSpread = Mathf.MoveToward(_reticleSpread, _reticleBaseSpread,
                 ReticleRecoverSpeed * (float)delta);
             UpdateReticleSize();
+        }
+
+        // Feed scope overlay alpha from player lerp
+        if (_scopeOverlay.Active && _gm.Player != null)
+        {
+            _scopeOverlay.LerpAlpha = _gm.Player.ScopeLerp;
         }
     }
 
@@ -401,6 +411,32 @@ public partial class Hud : CanvasLayer
         UpdateReticleVisibility();
     }
 
+    // ── Scope Overlay ────────────────────────────────────────────────────
+
+    private void BuildScopeOverlay()
+    {
+        _scopeOverlay = new ScopeOverlay();
+        AddChild(_scopeOverlay);
+    }
+
+    private void OnScopeChanged(bool scoped, int scopeType, int reticleType)
+    {
+        if (scopeType == (int)ScopeType.FullScope)
+        {
+            _scopeOverlay.Active = scoped;
+            _scopeOverlay.ReticleType = (ScopeReticleType)reticleType;
+            // Hide normal reticle while full-scope is active
+            _reticleContainer.Visible = !scoped && _settings.ShowReticle;
+        }
+        else
+        {
+            // Shoulder scope — keep normal reticle, no overlay
+            _scopeOverlay.Active = false;
+            _scopeOverlay.LerpAlpha = 0f;
+            _reticleContainer.Visible = _settings.ShowReticle;
+        }
+    }
+
     /// <summary>
     /// Called by Player after firing to kick the reticle outward.
     /// </summary>
@@ -545,6 +581,7 @@ public partial class Hud : CanvasLayer
         _gm.Player.GrenadePowerChanged += OnGrenadePowerChanged;
         _gm.Player.WeaponChanged       += OnWeaponChanged;
         _gm.Player.ShotFired           += KickReticle;
+        _gm.Player.ScopeChanged        += OnScopeChanged;
 
         _healthBar.Value = _gm.Player.Health;
         _energyBar.Value = _gm.Player.Energy;

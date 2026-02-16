@@ -90,6 +90,7 @@ public static class InputActions
     public const string Jump             = "jump";
     public const string Brake            = "brake";
     public const string Fire             = "fire";
+    public const string AimScope         = "aim_scope";
     public const string MeleeAttack      = "melee_attack";
     public const string Reload           = "reload";
     public const string Interact         = "interact";

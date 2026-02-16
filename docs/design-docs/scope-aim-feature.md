@@ -1,6 +1,6 @@
 # Scope Aim (ADS) Feature — Design & Implementation Doc
 
-**Status:** Pending Approval  
+**Status:** Implemented  
 **Author:** Copilot  
 **Date:** 2026-02-16
 
