@@ -20,6 +20,7 @@ SwingDuration = 0.15
 SwingDamage = 25.0
 MeleeReach = 1.8
 MeleeCooldown = 0.35
+OptimalRange = 1.8
 InitialLoadedAmmo = 0
 InitialTotalAmmo = 0
 WeaponModelScene = ExtResource("2")

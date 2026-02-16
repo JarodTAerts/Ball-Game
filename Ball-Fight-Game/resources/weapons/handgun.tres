@@ -20,6 +20,7 @@ SpreadAngleDeg = 0.0
 ReloadTime = 1.5
 SwingDuration = 1.0
 SwingDamage = 100.0
+OptimalRange = 15.0
 InitialLoadedAmmo = 15
 InitialTotalAmmo = 60
 WeaponModelScene = ExtResource("4")

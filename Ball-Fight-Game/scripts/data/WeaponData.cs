@@ -53,6 +53,15 @@ public partial class WeaponData : Resource
     [Export] public float MeleeReach    { get; set; } = 2.5f;  // how far the swing hits
     [Export] public float MeleeCooldown { get; set; } = 0.6f;  // seconds between swings
 
+    // --- AI engagement ---
+    [ExportGroup("AI")]
+    /// <summary>
+    /// Ideal engagement distance for enemy AI. Enemies will try to stay
+    /// near this range when using this weapon. Also useful for spawn logic
+    /// and difficulty tuning.
+    /// </summary>
+    [Export] public float OptimalRange { get; set; } = 15f;
+
     // --- Pickup / drop config ---
     [ExportGroup("Pickup")]
     [Export] public int InitialLoadedAmmo { get; set; }

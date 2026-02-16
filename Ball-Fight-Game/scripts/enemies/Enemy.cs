@@ -3,17 +3,17 @@ using Godot;
 namespace BallFightGame;
 
 /// <summary>
-/// Base enemy script for the rolling ball enemy. Chases the player via
-/// AddForce, deals contact damage with a cooldown, and shows a hit-flash
-/// when damaged.
+/// Unified enemy script for all enemy types. Driven entirely by data:
+///   - EnemyData controls health, speed, scale, appearance
+///   - EnemyData.Weapon (optional WeaponData) controls armament
 ///
-/// Replaces Unity's EnemyController.cs + EnemyChaseController.cs as a single
-/// cohesive script. Key improvements:
-///   - Merged two scripts into one (they were always on the same prefab)
-///   - Returns immediately after Die() — fixes Unity bug where code continued
-///     executing on a pending-destroy object
-///   - Uses groups instead of tags — all enemy types share "enemies" group
-///   - Hit-flash uses a Timer node instead of per-frame time tracking
+/// Unarmed enemies (Weapon == null) chase the player and deal contact damage.
+/// Armed enemies mount a visible weapon model and attack with it:
+///   - Ranged weapons: maintain optimal range, aim and shoot
+///   - Melee weapons: charge into reach and swing
+///
+/// This replaces the old Enemy.cs + GunEnemy.cs split. All behavior is now
+/// in one script, selected by data — no subclasses needed.
 /// </summary>
 public partial class Enemy : RigidBody3D
 {
@@ -24,16 +24,28 @@ public partial class Enemy : RigidBody3D
 	public float Health { get; protected set; }
 
 	// Cached references
-	protected GameManager   Gm = null!;
-	protected WeaponManager Wm = null!;
+	private GameManager   _gm = null!;
+	private WeaponManager _wm = null!;
 	private MeshInstance3D  _mesh       = null!;
 	private Timer           _flashTimer = null!;
 	private StandardMaterial3D? _normalMat;
 	private StandardMaterial3D? _flashMat;
 
-	private float _nextAttackTime;
+	private float _nextContactAttackTime;
 	private bool  _chasing;
 	private ShaderMaterial? _crackMat;
+
+	// ── Weapon state ─────────────────────────────────────────────────────
+	private Node3D?   _weaponPivot;       // top-level pivot that doesn't inherit RigidBody rotation
+	private Node3D?   _weaponMount;       // child of pivot, holds the weapon model
+	private Node3D?   _weaponModelInstance;
+	private Marker3D? _bulletSpawn;
+	private float     _nextWeaponAttackTime;
+	private bool      _isMeleeSwinging;
+	private float     _meleeSwingProgress;
+	private int       _burstRemaining;    // shots left in current burst (rifle)
+	private float     _nextBurstShotTime; // time for next shot within a burst
+	private readonly System.Collections.Generic.HashSet<ulong> _meleeHitThisSwing = new();
 
 	// Pre-loaded for death explosion
 	private static readonly PackedScene ExplosionScene =
@@ -86,10 +98,12 @@ public partial class Enemy : RigidBody3D
 		return _sharedConfettiMesh;
 	}
 
+	// ── Lifecycle ────────────────────────────────────────────────────────
+
 	public override void _Ready()
 	{
-		Gm = GetNode<GameManager>("/root/GameManager");
-		Wm = GetNode<WeaponManager>("/root/WeaponManager");
+		_gm = GetNode<GameManager>("/root/GameManager");
+		_wm = GetNode<WeaponManager>("/root/WeaponManager");
 
 		AddToGroup(Groups.Enemies);
 
@@ -99,7 +113,6 @@ public partial class Enemy : RigidBody3D
 			Health = Stats.MaxHealth;
 
 			// Scale visual and collision children — NOT the RigidBody3D root
-			// (Godot RigidBody3D doesn't reliably support root-node scaling)
 			float s = Stats.Scale;
 			foreach (var child in GetChildren())
 			{
@@ -126,7 +139,7 @@ public partial class Enemy : RigidBody3D
 			_normalMat.AlbedoTexture = Stats.FaceTexture;
 		_mesh.MaterialOverride = _normalMat;
 
-		// Build the hit-flash material (swaps texture, matching Unity behavior)
+		// Build the hit-flash material
 		if (Stats?.HitFlashTexture != null)
 		{
 			_flashMat = (StandardMaterial3D)_normalMat.Duplicate();
@@ -154,7 +167,7 @@ public partial class Enemy : RigidBody3D
 		_flashTimer.Timeout += OnHitFlashTimeout;
 		AddChild(_flashTimer);
 
-		// Chase range detection — connect signal from the Area3D child
+		// Chase range detection
 		var chaseArea = GetNodeOrNull<Area3D>("ChaseRange");
 		if (chaseArea != null)
 		{
@@ -163,50 +176,373 @@ public partial class Enemy : RigidBody3D
 		}
 		else
 		{
-			// No chase range Area3D — always chase
 			_chasing = true;
 		}
 
 		// Contact damage detection
 		var damageArea = GetNodeOrNull<Area3D>("DamageArea");
 		if (damageArea != null)
-		{
 			damageArea.BodyEntered += OnDamageBodyEntered;
-		}
 
-		// Attach crack overlay (Minecraft-style damage visualization)
+		// Attach crack overlay
 		float crackRadius = 0.52f * (Stats?.Scale ?? 1f);
 		_crackMat = DamageCrackOverlay.Attach(this, crackRadius);
+
+		// Mount weapon if armed
+		if (Stats is { IsArmed: true })
+			MountWeapon(Stats.Weapon!);
 	}
 
 	public override void _PhysicsProcess(double delta)
 	{
-		if (Gm.GameOver) return;
+		if (_gm.GameOver) return;
 
-		// Clamp enemies to play area (same boundary as player + some margin)
 		ClampToBoundary();
 
 		if (!_chasing) return;
 
-		var player = Gm.Player;
+		var player = _gm.Player;
 		if (player == null) return;
 
+		float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
 		float speed = Stats?.ChaseSpeed ?? 5f;
-		var direction = (player.GlobalPosition - GlobalPosition).Normalized();
-		ApplyCentralForce(new Vector3(direction.X, 0, direction.Z) * speed);
+
+		if (Stats is { IsArmed: true })
+		{
+			// Armed enemies use weapon-aware movement
+			HandleArmedChase(player, dist, speed);
+			HandleWeaponAttack(player, dist);
+		}
+		else
+		{
+			// Unarmed: always charge toward the player
+			var direction = (player.GlobalPosition - GlobalPosition).Normalized();
+			ApplyCentralForce(new Vector3(direction.X, 0, direction.Z) * speed);
+		}
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_gm.GameOver) return;
+		if (_isMeleeSwinging)
+			UpdateMeleeSwing((float)delta);
+	}
+
+	// ── Weapon Mounting ──────────────────────────────────────────────────
+
+	/// <summary>
+	/// Dynamically creates a top-level pivot (so it doesn't inherit the
+	/// RigidBody's physics rotation) with a WeaponMount child on the
+	/// ball's equator. The pivot follows the enemy's position each frame
+	/// and rotates freely to aim. Same architecture as the player's Pivot.
+	/// </summary>
+	private void MountWeapon(WeaponData weapon)
+	{
+		float scale = Stats?.Scale ?? 1f;
+		float ballRadius = 0.5f * scale;
+
+		// Create a top-level pivot that follows position but not rotation
+		_weaponPivot = new Node3D { Name = "WeaponPivot", TopLevel = true };
+		AddChild(_weaponPivot);
+		_weaponPivot.GlobalPosition = GlobalPosition;
+
+		// Create mount point offset to the ball's right side
+		_weaponMount = new Node3D { Name = "WeaponMount" };
+		_weaponPivot.AddChild(_weaponMount);
+		_weaponMount.Position = new Vector3(ballRadius, 0, 0);
+
+		// Create bullet spawn at mount origin
+		_bulletSpawn = new Marker3D { Name = "BulletSpawn" };
+		_weaponMount.AddChild(_bulletSpawn);
+
+		// Instantiate weapon model
+		if (weapon.WeaponModelScene != null)
+		{
+			_weaponModelInstance = weapon.WeaponModelScene.Instantiate<Node3D>();
+			_weaponMount.AddChild(_weaponModelInstance);
+			CenterWeaponModel(_weaponModelInstance, weapon.MountOffset);
+		}
 	}
 
 	/// <summary>
-	/// Prevents enemies from wandering too far from the play area.
-	/// Uses the same boundary as the player, with a small margin.
-	/// Also kills enemies that fall below the world.
+	/// Centers a weapon model along Z and pushes it outward along X so
+	/// its inner edge touches the ball surface instead of clipping in.
+	/// Same AABB walk as Player.CenterWeaponModel, plus X offset.
 	/// </summary>
+	private static void CenterWeaponModel(Node3D model, Vector3 mountOffset)
+	{
+		Aabb? combined = null;
+
+		void WalkNode(Node node, Transform3D parentXform)
+		{
+			if (node is Node3D n3d)
+			{
+				var xform = parentXform * n3d.Transform;
+				if (n3d is MeshInstance3D meshInst && meshInst.Mesh != null)
+				{
+					var meshAabb = meshInst.Mesh.GetAabb();
+					for (int i = 0; i < 8; i++)
+					{
+						var corner = new Vector3(
+							(i & 1) == 0 ? meshAabb.Position.X : meshAabb.End.X,
+							(i & 2) == 0 ? meshAabb.Position.Y : meshAabb.End.Y,
+							(i & 4) == 0 ? meshAabb.Position.Z : meshAabb.End.Z);
+						var worldCorner = xform * corner;
+						combined = combined.HasValue
+							? combined.Value.Expand(worldCorner)
+							: new Aabb(worldCorner, Vector3.Zero);
+					}
+				}
+				foreach (var child in n3d.GetChildren())
+					WalkNode(child, xform);
+			}
+		}
+
+		WalkNode(model, Transform3D.Identity);
+		if (!combined.HasValue) return;
+
+		var aabb = combined.Value;
+		float zCenter = (aabb.Position.Z + aabb.End.Z) / 2f;
+		// Push outward along X by half the model's width so the inner
+		// face sits at the ball surface instead of the center clipping in.
+		float xHalfExtent = (aabb.End.X - aabb.Position.X) / 2f;
+		model.Position = new Vector3(
+			xHalfExtent + mountOffset.X,
+			mountOffset.Y,
+			-zCenter + mountOffset.Z);
+	}
+
+	// ── Weapon-Aware Chase ───────────────────────────────────────────────
+
+	/// <summary>
+	/// Armed enemies try to maintain optimal engagement range:
+	///   - Ranged: stay near OptimalRange, back up if too close
+	///   - Melee: charge in until within reach
+	/// </summary>
+	private void HandleArmedChase(Player player, float dist, float speed)
+	{
+		var weapon = Stats!.Weapon!;
+		var toPlayer = (player.GlobalPosition - GlobalPosition);
+		var dirFlat = new Vector3(toPlayer.X, 0, toPlayer.Z).Normalized();
+
+		if (weapon.Category == WeaponCategory.Melee)
+		{
+			// Melee: always charge toward the player
+			ApplyCentralForce(dirFlat * speed);
+		}
+		else
+		{
+			// Ranged: maintain optimal distance
+			float optimalRange = weapon.OptimalRange;
+			float tooCloseThreshold = optimalRange * 0.5f;
+			float tooFarThreshold   = optimalRange * 1.3f;
+
+			if (dist > tooFarThreshold)
+			{
+				// Too far — close in
+				ApplyCentralForce(dirFlat * speed);
+			}
+			else if (dist < tooCloseThreshold)
+			{
+				// Too close — back away (half speed)
+				ApplyCentralForce(-dirFlat * speed * 0.5f);
+			}
+			// else: in the sweet zone — strafe/hold position (no force)
+		}
+	}
+
+	// ── Weapon Attack ────────────────────────────────────────────────────
+
+	private void HandleWeaponAttack(Player player, float dist)
+	{
+		var weapon = Stats!.Weapon!;
+
+		// Aim weapon mount at the player
+		AimWeaponAtPlayer(player);
+
+		if (weapon.Category == WeaponCategory.Ranged)
+			HandleRangedAttack(player, weapon, dist);
+		else
+			HandleMeleeAttack(player, weapon, dist);
+	}
+
+	/// <summary>
+	/// Keeps the weapon pivot tracking the enemy's position and rotates
+	/// the mount to face the player. Because _weaponPivot is top-level,
+	/// it doesn't inherit the RigidBody's spin — it stays oriented
+	/// correctly just like the player's Pivot node.
+	/// </summary>
+	private void AimWeaponAtPlayer(Player player)
+	{
+		if (_weaponPivot == null || _weaponMount == null) return;
+
+		// Track enemy position (top-level doesn't auto-follow)
+		_weaponPivot.GlobalPosition = GlobalPosition;
+
+		// LookAt the player from the mount position — same as player's
+		// UpdateAimPoint does for the player's WeaponMount
+		var mountPos = _weaponMount.GlobalPosition;
+		var toPlayer = player.GlobalPosition - mountPos;
+		if (toPlayer.LengthSquared() > 0.01f)
+		{
+			_weaponMount.LookAt(mountPos + toPlayer, Vector3.Up);
+		}
+	}
+
+	/// <summary>
+	/// Fire ranged weapon at the player if within range and off cooldown.
+	/// Uses per-enemy fire rate and accuracy spread (much slower and less
+	/// accurate than the player).
+	/// </summary>
+	private void HandleRangedAttack(Player player, WeaponData weapon, float dist)
+	{
+		// Only fire within effective range (1.3× optimal)
+		if (dist > weapon.OptimalRange * 1.3f) return;
+
+		float now = (float)Time.GetTicksMsec() / 1000f;
+
+		// Handle burst fire (rifle): fire remaining burst shots rapidly
+		if (_burstRemaining > 0 && now >= _nextBurstShotTime)
+		{
+			FireOneShot(player, weapon);
+			_burstRemaining--;
+			_nextBurstShotTime = now + 0.15f; // 150ms between burst shots
+			return;
+		}
+
+		// Check main fire cooldown
+		if (now < _nextWeaponAttackTime) return;
+
+		if (weapon.Type == WeaponType.Rifle)
+		{
+			// Start a burst
+			_burstRemaining = Stats!.EffectiveBurstCount;
+			FireOneShot(player, weapon);
+			_burstRemaining--;
+			_nextBurstShotTime = now + 0.15f;
+		}
+		else
+		{
+			FireOneShot(player, weapon);
+		}
+
+		_nextWeaponAttackTime = now + Stats!.EffectiveFireRate;
+	}
+
+	/// <summary>
+	/// Fires a single shot with accuracy spread applied.
+	/// </summary>
+	private void FireOneShot(Player player, WeaponData weapon)
+	{
+		var origin = _bulletSpawn?.GlobalPosition ?? _weaponMount!.GlobalPosition;
+		var perfectDir = (player.GlobalPosition - origin).Normalized();
+
+		// Apply accuracy spread — random angular deviation
+		var direction = ApplyAccuracySpread(perfectDir, Stats!.EffectiveAccuracyDeg);
+
+		switch (weapon.Type)
+		{
+			case WeaponType.Shotgun:
+				_wm.FireTracerShotgun(origin, direction,
+					200f, weapon.Damage, "enemy", weapon.SpreadAngleDeg);
+				break;
+
+			case WeaponType.RocketLauncher:
+				_wm.FireRocket(origin, direction, weapon.BulletSpeed, "enemy");
+				break;
+
+			default: // Handgun, Rifle
+				_wm.FireTracer(origin, direction, 200f, weapon.Damage, "enemy");
+				break;
+		}
+	}
+
+	/// <summary>
+	/// Randomly deviates a direction vector by up to spreadDeg degrees.
+	/// Creates a cone of inaccuracy around the perfect aim direction.
+	/// </summary>
+	private static Vector3 ApplyAccuracySpread(Vector3 direction, float spreadDeg)
+	{
+		if (spreadDeg <= 0f) return direction;
+
+		float spreadRad = Mathf.DegToRad(spreadDeg);
+
+		// Random angle around the barrel axis
+		float rotAngle = (float)GD.RandRange(0, Mathf.Tau);
+		// Random deviation magnitude (uniform in angle, not area)
+		float deviation = (float)GD.RandRange(0, spreadRad);
+
+		// Build perpendicular axes
+		var right = direction.Cross(Vector3.Up).Normalized();
+		if (right.LengthSquared() < 0.001f)
+			right = direction.Cross(Vector3.Right).Normalized();
+		var up = right.Cross(direction).Normalized();
+
+		// Offset direction
+		var spreadAxis = (right * Mathf.Cos(rotAngle) + up * Mathf.Sin(rotAngle)).Normalized();
+		return direction.Rotated(spreadAxis, deviation).Normalized();
+	}
+
+	/// <summary>
+	/// Swing melee weapon at the player when within reach.
+	/// </summary>
+	private void HandleMeleeAttack(Player player, WeaponData weapon, float dist)
+	{
+		if (_isMeleeSwinging) return;
+		if (dist > weapon.MeleeReach) return;
+
+		float now = (float)Time.GetTicksMsec() / 1000f;
+		if (now < _nextWeaponAttackTime) return;
+
+		// Start swing
+		_isMeleeSwinging = true;
+		_meleeSwingProgress = 0f;
+		_meleeHitThisSwing.Clear();
+		_nextWeaponAttackTime = now + weapon.MeleeCooldown;
+	}
+
+	/// <summary>
+	/// Animates a 360° weapon swing and checks for player hits during it.
+	/// Same visual pattern as the player's melee swing.
+	/// </summary>
+	private void UpdateMeleeSwing(float delta)
+	{
+		if (Stats?.Weapon == null || _weaponMount == null) return;
+
+		var weapon = Stats.Weapon;
+		_meleeSwingProgress += delta / weapon.SwingDuration;
+
+		if (_meleeSwingProgress >= 1f)
+		{
+			_isMeleeSwinging = false;
+			_meleeSwingProgress = 0f;
+			_weaponModelInstance?.SetDeferred("rotation", Vector3.Zero);
+			return;
+		}
+
+		// Rotate the weapon model 360° around Y
+		float angle = _meleeSwingProgress * Mathf.Tau;
+		if (_weaponModelInstance != null)
+			_weaponModelInstance.Rotation = new Vector3(0, angle, 0);
+
+		// Check if player is within reach (damage once per swing)
+		var player = _gm.Player;
+		if (player == null) return;
+
+		float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
+		if (dist <= weapon.MeleeReach && _meleeHitThisSwing.Add(player.GetInstanceId()))
+		{
+			player.TakeDamage(weapon.SwingDamage);
+		}
+	}
+
+	// ── Boundary Clamping ────────────────────────────────────────────────
+
 	private void ClampToBoundary()
 	{
-		float limit = Gm.PlayerBoundary + 10f; // enemies get slightly more room
+		float limit = _gm.PlayerBoundary + 10f;
 		var pos = GlobalPosition;
 
-		// Kill if fallen out of world
 		if (pos.Y < -50f)
 		{
 			QueueFree();
@@ -220,7 +556,6 @@ public partial class Enemy : RigidBody3D
 		if (clamped)
 		{
 			GlobalPosition = pos;
-			// Push back toward center
 			var toCenter = new Vector3(-pos.X, 0, -pos.Z).Normalized();
 			ApplyCentralForce(toCenter * 10f);
 		}
@@ -233,20 +568,18 @@ public partial class Enemy : RigidBody3D
 		Health -= amount;
 		FlashHit();
 
-		// Update crack overlay
 		if (_crackMat != null)
 			DamageCrackOverlay.UpdateDamage(_crackMat, Health, Stats?.MaxHealth ?? 100f);
 
 		if (Health <= 0f)
 		{
 			Die();
-			return; // Fix: Unity continued executing after Destroy
+			return;
 		}
 	}
 
 	private void FlashHit()
 	{
-		// Swap to the hit-flash material (texture swap, matching Unity)
 		_mesh.MaterialOverride = _flashMat;
 		_flashTimer.Start();
 	}
@@ -258,26 +591,18 @@ public partial class Enemy : RigidBody3D
 
 	protected virtual void Die()
 	{
-		Gm.RegisterKill();
+		_gm.RegisterKill();
 		EmitSignal(SignalName.Killed);
-
-		// Spawn confetti burst at death location (matches Unity's particle pop)
 		SpawnConfetti();
 
-		// Spawn explosion at death location — does NOT hurt the player
-		// (only grenade/rocket explosions should damage the player)
-		var explosion = Wm.SpawnExplosion(GlobalPosition);
+		var explosion = _wm.SpawnExplosion(GlobalPosition);
 		explosion.IgnorePlayer = true;
-		explosion.Damage = 0f;          // cosmetic only
-		explosion.Force = 5f;           // small knockback on nearby enemies
-		explosion.ExplosionRadius = 3f; // small visual pop, not a combat blast
+		explosion.Damage = 0f;
+		explosion.Force = 5f;
+		explosion.ExplosionRadius = 3f;
 		QueueFree();
 	}
 
-	/// <summary>
-	/// Creates a colorful confetti particle burst at the enemy's position.
-	/// Reuses pre-built shared materials/meshes to avoid GPU stalls.
-	/// </summary>
 	private void SpawnConfetti()
 	{
 		var confettiRoot = new Node3D();
@@ -298,7 +623,6 @@ public partial class Enemy : RigidBody3D
 		confettiRoot.AddChild(particles);
 		particles.Emitting = true;
 
-		// Auto-free after particles finish
 		var timer = new Timer { WaitTime = 1.5f, OneShot = true };
 		timer.Timeout += confettiRoot.QueueFree;
 		confettiRoot.AddChild(timer);
@@ -310,14 +634,9 @@ public partial class Enemy : RigidBody3D
 	private void OnDamageBodyEntered(Node3D body)
 	{
 		if (body is Player player)
-			TryAttack(player);
+			TryContactAttack(player);
 	}
 
-	/// <summary>
-	/// Also called each physics frame while the player remains inside the
-	/// damage area. Connect DamageArea's BodyStayed or use _PhysicsProcess
-	/// polling with GetOverlappingBodies.
-	/// </summary>
 	public void ProcessContactDamage()
 	{
 		var damageArea = GetNodeOrNull<Area3D>("DamageArea");
@@ -326,20 +645,20 @@ public partial class Enemy : RigidBody3D
 		foreach (var body in damageArea.GetOverlappingBodies())
 		{
 			if (body is Player player)
-				TryAttack(player);
+				TryContactAttack(player);
 		}
 	}
 
-	private void TryAttack(Player player)
+	private void TryContactAttack(Player player)
 	{
 		float cooldown = Stats?.ContactCooldown ?? 1f;
 		float damage   = Stats?.ContactDamage ?? 2f;
 		float now = (float)Time.GetTicksMsec() / 1000f;
 
-		if (now < _nextAttackTime) return;
+		if (now < _nextContactAttackTime) return;
 
 		player.TakeDamage(damage);
-		_nextAttackTime = now + cooldown;
+		_nextContactAttackTime = now + cooldown;
 	}
 
 	// ── Chase Range ──────────────────────────────────────────────────────
