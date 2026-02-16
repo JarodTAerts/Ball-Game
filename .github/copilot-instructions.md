@@ -1,92 +1,72 @@
-# Copilot Instructions — Ball-Game (Jarod's Game)
+# Copilot Instructions — Ball-Fight-Game
 
-## Project Overview
-A physics-based **rolling-ball arena shooter**. The player is a sphere that rolls around procedurally-generated terrain, picks up weapons, and fights waves of enemy balls. 
+## What This Project Is
 
-**Current Status**: Migrating from **Unity 2017.x** to **Godot** (open source, lightweight, more controllable). Work on both versions in parallel — maintain the Unity codebase while implementing equivalent Godot GDScript versions. New features should target Godot; Unity updates are primarily for reference/compatibility.
+A physics-based **rolling-ball arena shooter** built in **Godot 4.6 with C# (.NET)**. You are a ball. You roll. You pick up guns, swords, and rocket launchers. You fight waves of angry enemy balls that roll toward you. The entire game is built around the feel of physics-driven rolling — movement is forces applied to a `RigidBody3D` sphere, not direct position changes. The ball tumbles, bounces off terrain, and momentum matters.
 
-## Architecture — Centralized Function Library
+The game has hitscan tracers, scoped aiming (shoulder + full-scope), grenade arcs, dual-wield melee, procedurally-generated terrain, a city level with doorways you can roll through, and a local leaderboard. All characters are spheres with hand-drawn face textures.
 
-### Unity (Legacy) Architecture
-Nearly every script locates two singletons by tag in `Start()`:
-- **`GameFunctions`** (`Assets/Scripts/GameControllers/GameFunctions.cs`) — God-object containing movement, rotation, shooting, damage, weapon swapping, UI updates, and math utilities. ~500 lines.
-- **`GameController`** (`Assets/Scripts/GameControllers/GameController.cs`) — Global state: `kills`, `numEnemies`, `gameOver`, pause, and boundary constraints.
+## Documentation — Read These First
 
-All inter-component communication flows through `GameObject.FindGameObjectWithTag()` + `GetComponent<>()`. When adding new logic, follow this existing pattern or refactor to cache the component reference in `Start()`.
+Detailed documentation lives in `docs/`. **Always reference these before making changes:**
 
-### Godot (Target) Architecture
-The Godot port will refactor this into **proper scene-based architecture**:
-- Autoload singletons (Game Manager, Weapon Manager) instead of tag lookups
-- Node signals for inter-component communication instead of direct `GetComponent` calls
-- Separate script per node type (cleaner than MonoBehaviour god-objects)
-- Use Godot's built-in physics (`CharacterBody3D`, `RigidBody3D`) instead of Unity equivalents
+- **`docs/project-overview.md`** — What the game is, tech stack, quick start, weapon/enemy tables, file counts
+- **`docs/architecture.md`** — Code organization, autoload singletons, signal-based communication, data-driven design, scene hierarchy patterns, physics layers
+- **`docs/game-systems.md`** — Deep reference for every system: player, weapons, projectiles, enemies, spawners, pickups, terrain generation, UI, tutorial, audio, shaders, input map, persistence
+- **`docs/known-issues-and-challenges.md`** — Active bugs, technical debt, architecture challenges, missing features, performance considerations
+- **`docs/issues/`** — Individual issue investigations with root cause analysis and proposed fixes
 
-## Key Conventions
-- **No `[SerializeField]`** — fields are either `public` (Inspector-exposed) or `private`. Follow this existing style.
-- **`FixedUpdate` for physics** (forces, Rigidbody movement); **`Update` for input and game logic**.
-- **Collision via triggers** — all colliders use `OnTriggerEnter`/`OnTriggerStay`, not `OnCollisionEnter`.
-- **Tag-based identification** — objects are identified by tags like `"Player"`, `"Enemy"`, `"PlayerTrigger"`, `"Terrian"`, `"GameFunctions"`, `"GameController"`. Note: terrain is misspelled as `"Terrian"` throughout — preserve this for consistency.
+## Project Structure
 
-## WeaponType Enum (Dual-Purpose)
-Defined in `GameFunctions.cs` — integer values **double as magazine capacity**:
-```csharp
-public enum WeaponType { HandGun=15, Rifle=30, Shotgun=3, RocketLauncher=1, Sword=0, Axe=-1, None=-2 }
+All active code is in `Ball-Fight-Game/`. The `Unity/` folder is a legacy reference and should be ignored.
+
 ```
-Melee weapons (≤0) bypass gun logic. Ammo pickups give `4 × (int)currentWeapon` rounds.
+Ball-Game/                          ← Git repo root
+├── Ball-Fight-Game/                ← Godot project (ALL active development)
+│   ├── project.godot               ← Engine config, input map, autoloads
+│   ├── Ball-Fight-Game.csproj       ← .NET project
+│   ├── scripts/                     ← C# source (namespace: BallFightGame)
+│   │   ├── autoloads/               ← GameManager, WeaponManager, Settings
+│   │   ├── data/                    ← WeaponData, EnemyData, GameConstants, Leaderboard
+│   │   ├── player/                  ← Player.cs (movement, combat, camera, scope)
+│   │   ├── enemies/                 ← Enemy.cs (all 4 types, data-driven)
+│   │   ├── projectiles/             ← Bullet, Tracer, Rocket, Grenade, Explosion
+│   │   ├── pickups/                 ← WeaponPickup, AmmoPickup, GrenadePickup
+│   │   ├── spawners/                ← EnemySpawner, WeaponDropSpawner, AmmoSpawner
+│   │   ├── environment/             ← TerrainGenerator, CityGenerator, ArenaWallBuilder
+│   │   ├── ui/                      ← Hud, StartMenu, ScopeOverlay, LeaderboardPanel
+│   │   ├── tutorial/                ← TutorialController, Checkpoint
+│   │   └── effects/                 ← DamageCrackOverlay
+│   ├── scenes/                      ← .tscn files (levels, enemies, pickups, UI)
+│   ├── resources/                   ← .tres data files (weapon/enemy stats), shaders
+│   └── assets/                      ← Models (.fbx), sounds (.mp3), textures (.png)
+├── docs/                            ← Design docs, architecture, known issues
+├── OpenScadModels/                  ← Source .scad files for weapon geometry
+└── Unity/                           ← LEGACY — do not modify, will be deleted
+```
 
-## Weapon Lifecycle
-1. **WeaponDropSpawner** spawns pickups at kill thresholds (0→HandGun, 15→Shotgun, 30→Sword, etc.)
-2. **Pickup scripts** (`Pickups and Drops/`) detect player overlap + Q key → swap weapon
-3. **PlayerController** fires via `GameFunctions.ShootWeapon()` → `GameFunctions.CreateBullet()`
-4. **BulletMovement / RocketController / GrenadeController** handle projectile behavior
-5. **SwingWeaponController** handles melee (360° rotation swing on Mouse0)
+## Key Architecture Principles
 
-> ⚠️ Per-weapon pickup scripts (e.g., `HandGunPickupController.cs`) are duplicates of the generic `WeaponDropController.cs`. Prefer using `WeaponDropController` for new weapons.
+1. **Data-driven**: Weapons and enemies are defined entirely by `.tres` resource files (`resources/weapons/`, `resources/enemies/`). Adding a new weapon = creating a `.tres` file. One `Enemy.cs` script handles all 4 enemy types via `EnemyData`.
 
-## Enemy System
-Four enemy types (all prefabs in `Assets/Prefabs/Enemies/`): Normal, Fast, Big, GunEnemy. Key scripts:
-- `EnemyChaseController` — rolls toward player via `AddForce`
-- `EnemyController` — health, contact damage with cooldown, hit-flash texture swap
-- `GunEnemyController` — extends chase behavior with shooting
+2. **Signal-based communication**: `GameManager` emits `KillsChanged`, `GameOverTriggered`, `GamePaused`. `Player` emits `HealthChanged`, `AmmoChanged`, `WeaponChanged`, `ScopeChanged`, etc. The HUD, spawners, and tutorial all react to signals — no polling.
 
-Enemies escalate based on kill count in `EnemySpawner.cs` (probability thresholds at 20/40/50/75/90 kills).
+3. **Autoload singletons**: `GameManager` (game state), `WeaponManager` (projectile factory + weapon drops), `Settings` (persistent config). Accessed via `GetNode<T>("/root/NodeName")`, cached in `_Ready()`.
+
+4. **Top-level pivot pattern**: Both player and enemies use a `Node3D` with `TopLevel = true` that follows position but ignores the `RigidBody3D`'s physics rotation. This keeps the camera, weapons, and aiming stable while the ball rolls freely.
+
+5. **Constants, not strings**: Group names, scene paths, asset paths, and input action names are all in `GameConstants.cs` as static constants (`Groups.Player`, `Scenes.ArenaLevel`, `Assets.SfxGunshot`, `InputActions.Fire`).
+
+## Conventions When Writing Code
+
+- **Namespace**: `BallFightGame` — all scripts use this.
+- **`_PhysicsProcess` for physics** (forces, position syncing); **`_Process` for input and visuals**.
+- **Cache node references in `_Ready()`** — never call `GetNode` in per-frame methods.
+- **Use `[Export]` for inspector-tunable values** on Godot nodes and resources.
+- **Use `[GlobalClass]` on Resource subclasses** (`WeaponData`, `EnemyData`) so they're visible in the Godot inspector.
+- **Use Godot groups** (`Groups.Enemies`, `Groups.Player`, etc.) for batch operations, not manual node tracking.
+- **Projectile anti-tunneling**: Bullets and rockets use per-frame raycast sweeps between current and next position to prevent high-speed projectiles from passing through targets.
 
 ## 3D Model Pipeline
-Weapons are modeled in **OpenSCAD** (`OpenScadModels/*.scad`) using CSG primitives, exported as `.stl`, converted to `.fbx`, and placed in `Assets/Models/`. The `Buildings/` subfolder holds floor-section models.
 
-## Scene Structure
-- `Assets/_Scenes/StartMenu.unity` — Menu with canvas switching
-- `Assets/_Scenes/Levels/ArenaLevel.unity` — Primary arena mode
-- `Assets/_Scenes/Levels/OutDoorLevel.unity`, `CityLevel.unity` — Additional levels
-- `Assets/_Scenes/Tutorial.unity` — Checkpoint-driven tutorial (6 steps)
-
-## Known Bugs to Preserve (Unless Fixing)
-- `EnemySpawner.cs`: big enemy chance doubling uses `bigEnemyLowerChance` instead of `bigEnemyHigherChance`
-- `EnemySwingWeaponController.cs`: checks `Input.GetKeyDown(KeyCode.Mouse0)` (player input) on enemy script
-- `GetComponent<>()` calls are not cached — repeated every frame in `Update()` loops
-
-## Project Structure Quick Reference
-```
-Unity/Jarod's Game/          — Unity 2017 legacy codebase (reference)
-Assets/Scripts/
-  Player/           — PlayerController, Camera, Light, WeaponMovement
-  Enemy/            — Chase, Controller, SwingWeapon, GunEnemy
-  BulletControllers/ — BulletMovement, Rocket, Grenade
-  GameControllers/  — GameController, GameFunctions, Spawners, Tutorial
-  Pickups and Drops/ — Per-weapon pickups + generic WeaponDropController
-Assets/Prefabs/     — Player, Enemies, Bullets, Weapons, Explosions
-OpenScadModels/     — Source .scad files for weapon/building geometry
-
-Godot/               — (To be created) Godot 4.x equivalent implementation
-scenes/
-  player/           — Player scene hierarchy with weapon/camera orbiting
-  enemies/          — Enemy type scenes (Normal, Fast, Big, GunEnemy)
-  weapons/          — Weapon models and pickup scenes
-  ui/               — Menu and HUD scenes
-  levels/           — Arena, OutDoor, City, Tutorial levels
-scripts/
-  game_manager.gd   — Global game state (kills, enemies, pause)
-  weapon_manager.gd — Weapon spawning and progression logic
-  player.gd         — Player movement and input
-  (etc. parallel to Unity structure)
-```
+Weapons are modeled in **OpenSCAD** (`OpenScadModels/*.scad`) using CSG primitives, exported as `.stl`, converted to `.fbx`, and placed in `assets/models/weapons/`.
