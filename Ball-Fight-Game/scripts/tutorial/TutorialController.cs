@@ -36,6 +36,12 @@ public partial class TutorialController : Node
 	private static readonly PackedScene BigScene    = GD.Load<PackedScene>(Scenes.EnemyBig);
 	private static readonly PackedScene GunScene    = GD.Load<PackedScene>(Scenes.EnemyGun);
 
+	// Pre-loaded enemy data — set before AddChild so Stats is ready in Enemy._Ready()
+	private static readonly EnemyData NormalData = GD.Load<EnemyData>("res://resources/enemies/normal.tres");
+	private static readonly EnemyData FastData   = GD.Load<EnemyData>("res://resources/enemies/fast.tres");
+	private static readonly EnemyData BigData    = GD.Load<EnemyData>("res://resources/enemies/big.tres");
+	private static readonly EnemyData GunData    = GD.Load<EnemyData>("res://resources/enemies/gun.tres");
+
 	// Weapon resource paths for the showcase
 	private static readonly string[] AllWeaponPaths =
 	{
@@ -121,8 +127,10 @@ public partial class TutorialController : Node
 	{
 		_checkpointsCollected++;
 
-		if (_checkpointsCollected == 1)
-			ShowMessage("Great! Keep collecting checkpoints. Try pressing Space to jump.");
+		if (_checkpointsCollected == 0)
+			ShowMessage("Welcome! Move around using WASD. Collect the purple checkpoints to continue. (Alt+S to skip)");
+		else if (_checkpointsCollected == 1)
+			ShowMessage("Great! Keep collecting checkpoints. Try pressing Space to jump and E to force stop.");
 		else if (_checkpointsCollected == 3)
 			ShowMessage("Press F to toggle your flashlight. Keep going!");
 		else if (_checkpointsCollected == 6)
@@ -183,31 +191,41 @@ public partial class TutorialController : Node
 
 	private void StartPhase4()
 	{
+		// Guard: ensure all static enemies from Phase 3 are gone before
+		// moving enemies spawn. _phaseEnemiesAlive can desync if e.g. a
+		// rocket splash kills multiple enemies in one frame.
+		if (_phaseEnemiesAlive > 0)
+			ClearPhaseEnemies();
+
 		_phase = Phase.MovingEnemies;
 		_phaseEnemiesAlive = 0;
 
 		ShowMessage("Now for the real deal — 3 enemies that actually chase you! They'll roll toward you and deal contact damage. Keep moving and shoot them down.");
 
 		// Spawn 3 normal enemies at different distances
-		SpawnMovingEnemy(NormalScene, new Vector3(20, 1, 0));
-		SpawnMovingEnemy(NormalScene, new Vector3(-15, 1, 15));
-		SpawnMovingEnemy(NormalScene, new Vector3(0, 1, -20));
+		SpawnMovingEnemy(NormalScene, NormalData, new Vector3(20, 1, 0));
+		SpawnMovingEnemy(NormalScene, NormalData, new Vector3(-15, 1, 15));
+		SpawnMovingEnemy(NormalScene, NormalData, new Vector3(0, 1, -20));
 	}
 
 	// ── Phase 5: Enemy Types ─────────────────────────────────────────────
 
 	private void StartPhase5()
 	{
+		// Guard: same as Phase 4 — ensure Phase 4 moving enemies are all gone first
+		if (_phaseEnemiesAlive > 0)
+			ClearPhaseEnemies();
+
 		_phase = Phase.EnemyTypes;
 		_phaseEnemiesAlive = 0;
 
 		ShowMessage("Different enemy types! Orange = Fast (low health, high speed). Dark Red = Big (high health, slow). Purple = Gun Enemy (shoots back!). Take them all out!");
 
 		// Spawn one of each special type + one normal
-		SpawnMovingEnemy(FastScene, new Vector3(18, 1, 10));
-		SpawnMovingEnemy(BigScene,  new Vector3(-18, 1, -10));
-		SpawnMovingEnemy(GunScene,  new Vector3(0, 1, 22));
-		SpawnMovingEnemy(NormalScene, new Vector3(-10, 1, -18));
+		SpawnMovingEnemy(FastScene,   FastData,   new Vector3(18, 1, 10));
+		SpawnMovingEnemy(BigScene,    BigData,    new Vector3(-18, 1, -10));
+		SpawnMovingEnemy(GunScene,    GunData,    new Vector3(0, 1, 22));
+		SpawnMovingEnemy(NormalScene, NormalData, new Vector3(-10, 1, -18));
 	}
 
 	// ── Complete ─────────────────────────────────────────────────────────
@@ -222,33 +240,32 @@ public partial class TutorialController : Node
 
 	/// <summary>
 	/// Spawn a normal enemy with ChaseSpeed=0 so it sits still.
-	/// Duplicates the EnemyData resource so the shared resource isn't mutated.
+	/// Sets Stats before AddChild so it's available when Enemy._Ready() fires.
 	/// </summary>
 	private void SpawnStaticEnemy(Vector3 position)
 	{
 		var enemy = NormalScene.Instantiate<Enemy>();
+
+		// Duplicate and zero chase speed before adding to scene
+		var staticStats = (EnemyData)NormalData.Duplicate();
+		staticStats.ChaseSpeed = 0f;
+		enemy.Stats = staticStats;
+
 		GetTree().CurrentScene.AddChild(enemy);
 		enemy.GlobalPosition = position;
-
-		// Duplicate the stats resource and zero out chase speed
-		if (enemy.Stats != null)
-		{
-			var staticStats = (EnemyData)enemy.Stats.Duplicate();
-			staticStats.ChaseSpeed = 0f;
-			enemy.Stats = staticStats;
-		}
-
 		_phaseEnemiesAlive++;
 		_gm.RegisterEnemySpawned();
 		enemy.Killed += () => OnPhaseEnemyKilled();
 	}
 
 	/// <summary>
-	/// Spawn a moving enemy (normal behavior) and track it for phase progression.
+	/// Spawn a moving enemy and track it for phase progression.
+	/// Sets Stats before AddChild so it's available when Enemy._Ready() fires.
 	/// </summary>
-	private void SpawnMovingEnemy(PackedScene scene, Vector3 position)
+	private void SpawnMovingEnemy(PackedScene scene, EnemyData data, Vector3 position)
 	{
 		var enemy = scene.Instantiate<Enemy>();
+		enemy.Stats = (EnemyData)data.Duplicate();
 		GetTree().CurrentScene.AddChild(enemy);
 		enemy.GlobalPosition = position;
 		_phaseEnemiesAlive++;
@@ -325,8 +342,16 @@ public partial class TutorialController : Node
 		_phaseEnemiesAlive = 0;
 	}
 
+	/// <summary>
+	/// The most recently shown tutorial message. TutorialHud reads this after
+	/// connecting its signal handler so messages emitted before the connection
+	/// (e.g. the welcome message in _Ready) are not silently dropped.
+	/// </summary>
+	public string CurrentMessage { get; private set; } = "";
+
 	private void ShowMessage(string message)
 	{
+		CurrentMessage = message;
 		EmitSignal(SignalName.TutorialMessage, message);
 	}
 }

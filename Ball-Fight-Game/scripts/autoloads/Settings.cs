@@ -15,11 +15,13 @@ public partial class Settings : Node
     public float MasterVolume { get; private set; } = 80f;  // 0–100
     public bool  ShowReticle  { get; private set; } = true;
     public bool  ShowPlayerNames { get; private set; } = false;
+    public bool  ShowFactionDots { get; private set; } = false;
 
     // ── Signals ──────────────────────────────────────────────────────────
     [Signal] public delegate void VolumeChangedEventHandler(float volume);
     [Signal] public delegate void ReticleChangedEventHandler(bool show);
     [Signal] public delegate void PlayerNamesChangedEventHandler(bool show);
+    [Signal] public delegate void FactionDotsChangedEventHandler(bool show);
 
     public override void _Ready()
     {
@@ -51,6 +53,13 @@ public partial class Settings : Node
         Save();
     }
 
+    public void SetShowFactionDots(bool value)
+    {
+        ShowFactionDots = value;
+        EmitSignal(SignalName.FactionDotsChanged, ShowFactionDots);
+        Save();
+    }
+
     // ── Volume application ───────────────────────────────────────────────
 
     private void ApplyVolume()
@@ -70,6 +79,7 @@ public partial class Settings : Node
         cfg.SetValue(Section, "master_volume", MasterVolume);
         cfg.SetValue(Section, "show_reticle", ShowReticle);
         cfg.SetValue(Section, "show_player_names", ShowPlayerNames);
+        cfg.SetValue(Section, "show_faction_dots", ShowFactionDots);
         cfg.Save(SavePath);
     }
 
@@ -81,5 +91,6 @@ public partial class Settings : Node
         MasterVolume = (float)cfg.GetValue(Section, "master_volume", 80f);
         ShowReticle  = (bool)cfg.GetValue(Section, "show_reticle", true);
         ShowPlayerNames = (bool)cfg.GetValue(Section, "show_player_names", false);
+        ShowFactionDots = (bool)cfg.GetValue(Section, "show_faction_dots", false);
     }
 }

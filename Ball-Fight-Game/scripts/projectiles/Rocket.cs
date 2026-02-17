@@ -40,6 +40,22 @@ public partial class Rocket : Area3D
     {
         _velocity = velocity;
         _firedByFaction = firedByFaction;
+        OrientToVelocity();
+    }
+
+    /// <summary>
+    /// Rotates the rocket so its local +X axis (the nose direction in the mesh)
+    /// aligns with the travel direction. Called once on spawn since velocity is constant.
+    /// </summary>
+    private void OrientToVelocity()
+    {
+        if (_velocity.LengthSquared() < 0.0001f) return;
+        var dir = _velocity.Normalized();
+        // Use Up as reference; fall back to Forward when firing nearly straight up/down
+        var up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+        var zAxis = dir.Cross(up).Normalized();
+        var yAxis = zAxis.Cross(dir).Normalized();
+        GlobalBasis = new Basis(dir, yAxis, zAxis);
     }
 
     public override void _PhysicsProcess(double delta)

@@ -29,6 +29,13 @@ public partial class Enemy : RigidBody3D, IDamageable
 	public Faction EnemyFaction { get; set; } = Faction.Team2;
 
 	/// <summary>
+	/// When true, the team indicator dot above this enemy is always visible regardless
+	/// of the ShowFactionDots setting. Used for menu-mode enemies.
+	/// Must be set before this node is added to the scene tree.
+	/// </summary>
+	public bool AlwaysShowTeamIndicator { get; set; } = false;
+
+	/// <summary>
 	/// Whether this enemy is still alive.
 	/// </summary>
 	public bool IsAlive => Health > 0;
@@ -216,7 +223,7 @@ public partial class Enemy : RigidBody3D, IDamageable
 		AI.Initialize(this);
 
 		// Add team indicator
-		var teamIndicator = new TeamIndicator();
+		var teamIndicator = new TeamIndicator { AlwaysShow = AlwaysShowTeamIndicator };
 		AddChild(teamIndicator);
 		teamIndicator.SetTeamColor(EnemyFaction);
 	}

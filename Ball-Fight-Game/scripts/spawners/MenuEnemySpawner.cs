@@ -96,6 +96,9 @@ public partial class MenuEnemySpawner : Node
 		int teamIndex = _rng.RandiRange(0, 3);
 		enemy.EnemyFaction = (Faction)teamIndex;
 
+		// Always show team indicator in menu — no setting check needed
+		enemy.AlwaysShowTeamIndicator = true;
+
 		// Add to scene first (required before setting GlobalPosition)
 		GetTree().CurrentScene.AddChild(enemy);
 		_activeEnemies.Add(enemy);

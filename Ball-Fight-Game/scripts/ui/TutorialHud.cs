@@ -53,8 +53,12 @@ public partial class TutorialHud : Hud
     private void ConnectTutorial()
     {
         var tutorial = GetTree().CurrentScene.GetNodeOrNull<TutorialController>("TutorialController");
-        if (tutorial != null)
-            tutorial.TutorialMessage += OnTutorialMessage;
+        if (tutorial == null) return;
+        tutorial.TutorialMessage += OnTutorialMessage;
+        // Replay any message emitted before we connected (e.g. the welcome message
+        // from TutorialController._Ready, which runs before TutorialHud._Ready).
+        if (!string.IsNullOrEmpty(tutorial.CurrentMessage))
+            OnTutorialMessage(tutorial.CurrentMessage);
     }
 
     private void OnTutorialMessage(string message)

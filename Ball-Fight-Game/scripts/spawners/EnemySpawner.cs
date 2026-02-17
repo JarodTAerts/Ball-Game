@@ -48,6 +48,13 @@ public partial class EnemySpawner : Node
     private static readonly PackedScene BigScene    = GD.Load<PackedScene>(Scenes.EnemyBig);
     private static readonly PackedScene GunScene    = GD.Load<PackedScene>(Scenes.EnemyGun);
 
+    // ── Pre-loaded enemy data ─────────────────────────────────────────────
+    // Set before AddChild so Stats is available when Enemy._Ready() runs.
+    private static readonly EnemyData NormalData = GD.Load<EnemyData>("res://resources/enemies/normal.tres");
+    private static readonly EnemyData FastData   = GD.Load<EnemyData>("res://resources/enemies/fast.tres");
+    private static readonly EnemyData BigData    = GD.Load<EnemyData>("res://resources/enemies/big.tres");
+    private static readonly EnemyData GunData    = GD.Load<EnemyData>("res://resources/enemies/gun.tres");
+
     private GameManager _gm = null!;
     private Timer       _timer = null!;
 
@@ -100,10 +107,10 @@ public partial class EnemySpawner : Node
         var (normalPct, fastPct, bigPct, gunPct) = CalculateChances(_gm.Kills);
 
         // Roll for each type — multiple can spawn per tick (matches Unity)
-        TrySpawn(NormalScene, normalPct);
-        TrySpawn(FastScene,   fastPct);
-        TrySpawn(BigScene,    bigPct);
-        TrySpawn(GunScene,    gunPct);
+        TrySpawn(NormalScene, NormalData, normalPct);
+        TrySpawn(FastScene,   FastData,   fastPct);
+        TrySpawn(BigScene,    BigData,    bigPct);
+        TrySpawn(GunScene,    GunData,    gunPct);
     }
 
     private (float normal, float fast, float big, float gun) CalculateChances(int kills)
@@ -131,7 +138,7 @@ public partial class EnemySpawner : Node
         return (normal, fast, big, gun);
     }
 
-    private void TrySpawn(PackedScene scene, float chance)
+    private void TrySpawn(PackedScene scene, EnemyData data, float chance)
     {
         if (_gm.ActiveEnemies >= MaxEnemies) return;
         if (GD.Randf() * 100f >= chance) return;
@@ -146,7 +153,9 @@ public partial class EnemySpawner : Node
         if (terrain != null)
             pos.Y = terrain.SampleHeight(pos) + 1f;
 
-        var enemy = scene.Instantiate<Node3D>();
+        var enemy = scene.Instantiate<Enemy>();
+        // Set Stats before AddChild so it's available when Enemy._Ready() fires
+        enemy.Stats = (EnemyData)data.Duplicate();
         GetTree().CurrentScene.AddChild(enemy);
         enemy.GlobalPosition = pos;
         _gm.RegisterEnemySpawned();

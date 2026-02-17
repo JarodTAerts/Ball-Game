@@ -384,6 +384,23 @@ public partial class Hud : CanvasLayer
         namesRow.AddChild(namesCheck);
         _optionsMenu.AddChild(namesRow);
 
+        // ── Show Faction Dots toggle ──
+        var dotsRow = new HBoxContainer();
+        dotsRow.AddThemeConstantOverride("separation", 10);
+        var dotsLabel = new Label { Text = "Faction Dots" };
+        dotsLabel.AddThemeFontSizeOverride("font_size", 18);
+        dotsLabel.AddThemeColorOverride("font_color", Colors.White);
+        dotsLabel.CustomMinimumSize = new Vector2(100, 0);
+        dotsRow.AddChild(dotsLabel);
+
+        var dotsCheck = new CheckButton
+        {
+            ButtonPressed = _settings.ShowFactionDots,
+        };
+        dotsCheck.Toggled += on => _settings.SetShowFactionDots(on);
+        dotsRow.AddChild(dotsCheck);
+        _optionsMenu.AddChild(dotsRow);
+
         // ── Back button ──
         var spacer = new Control { CustomMinimumSize = new Vector2(0, 10) };
         _optionsMenu.AddChild(spacer);

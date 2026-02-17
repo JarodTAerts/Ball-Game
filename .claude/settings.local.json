@@ -7,7 +7,9 @@
       "glob",
       "Bash(dotnet build:*)",
       "Bash(test:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(powershell -Command \"[System.Guid]::NewGuid\\(\\).ToString\\(\\).ToUpper\\(\\)\")",
+      "Bash(python3:*)"
     ],
     "ask": [
       "Bash"

@@ -11,16 +11,40 @@ public partial class TeamIndicator : Node3D
 	private MeshInstance3D? _indicatorMesh;
 	private StandardMaterial3D? _material;
 	private Node3D? _parent;
+	private Settings? _settings;
 
 	[Export] public float HeightOffset { get; set; } = 1.2f;
 	[Export] public float IndicatorSize { get; set; } = 0.15f;
+
+	/// <summary>
+	/// When true the indicator is always visible regardless of the ShowFactionDots setting.
+	/// Set this on menu-mode enemies so the background battle always shows team colors.
+	/// </summary>
+	public bool AlwaysShow { get; set; } = false;
 
 	public override void _Ready()
 	{
 		// Detach from parent's rotation by using TopLevel
 		TopLevel = true;
 		_parent = GetParent<Node3D>();
+		_settings = GetNode<Settings>("/root/Settings");
 		CreateIndicator();
+		ApplyVisibility();
+		if (!AlwaysShow)
+			_settings.FactionDotsChanged += OnFactionDotsChanged;
+	}
+
+	public override void _ExitTree()
+	{
+		if (_settings != null && !AlwaysShow)
+			_settings.FactionDotsChanged -= OnFactionDotsChanged;
+	}
+
+	private void OnFactionDotsChanged(bool _) => ApplyVisibility();
+
+	private void ApplyVisibility()
+	{
+		Visible = AlwaysShow || (_settings?.ShowFactionDots ?? false);
 	}
 
 	public override void _Process(double delta)
