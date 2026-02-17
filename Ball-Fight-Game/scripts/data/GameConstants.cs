@@ -22,11 +22,12 @@ public static class Groups
 /// </summary>
 public static class Scenes
 {
-    public const string StartMenu    = "res://scenes/ui/StartMenu.tscn";
-    public const string ArenaLevel   = "res://scenes/levels/ArenaLevel.tscn";
-    public const string HillsLevel   = "res://scenes/levels/HillsLevel.tscn";
-    public const string CityLevel    = "res://scenes/levels/CityLevel.tscn";
-    public const string Tutorial     = "res://scenes/levels/Tutorial.tscn";
+    public const string StartMenu         = "res://scenes/ui/StartMenu.tscn";
+    public const string CustomizationMenu = "res://scenes/ui/CustomizationMenu.tscn";
+    public const string ArenaLevel        = "res://scenes/levels/ArenaLevel.tscn";
+    public const string HillsLevel        = "res://scenes/levels/HillsLevel.tscn";
+    public const string CityLevel         = "res://scenes/levels/CityLevel.tscn";
+    public const string Tutorial          = "res://scenes/levels/Tutorial.tscn";
 
     // Projectiles
     public const string Bullet    = "res://scenes/projectiles/Bullet.tscn";

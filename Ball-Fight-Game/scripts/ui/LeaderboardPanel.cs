@@ -189,8 +189,11 @@ public partial class LeaderboardPanel : PanelContainer
         yourScore.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.4f));
         _entryRow.AddChild(yourScore);
 
+        // Auto-populate name from PlayerCustomization
+        var customization = GetNode<PlayerCustomization>("/root/PlayerCustomization");
         _nameInput = new LineEdit
         {
+            Text = customization.PlayerName,
             PlaceholderText = "Your name",
             CustomMinimumSize = new Vector2(140, 32),
             MaxLength = 16,

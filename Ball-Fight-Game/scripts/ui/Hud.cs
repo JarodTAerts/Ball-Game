@@ -367,6 +367,23 @@ public partial class Hud : CanvasLayer
         retRow.AddChild(retCheck);
         _optionsMenu.AddChild(retRow);
 
+        // ── Show Player Names toggle ──
+        var namesRow = new HBoxContainer();
+        namesRow.AddThemeConstantOverride("separation", 10);
+        var namesLabel = new Label { Text = "Show Names" };
+        namesLabel.AddThemeFontSizeOverride("font_size", 18);
+        namesLabel.AddThemeColorOverride("font_color", Colors.White);
+        namesLabel.CustomMinimumSize = new Vector2(100, 0);
+        namesRow.AddChild(namesLabel);
+
+        var namesCheck = new CheckButton
+        {
+            ButtonPressed = _settings.ShowPlayerNames,
+        };
+        namesCheck.Toggled += on => _settings.SetShowPlayerNames(on);
+        namesRow.AddChild(namesCheck);
+        _optionsMenu.AddChild(namesRow);
+
         // ── Back button ──
         var spacer = new Control { CustomMinimumSize = new Vector2(0, 10) };
         _optionsMenu.AddChild(spacer);
@@ -652,7 +669,10 @@ public partial class Hud : CanvasLayer
     {
         _gameOverOverlay.Visible = true;
         UpdateReticleVisibility();
-        OnMessage("Game Over! Press 'R' to restart.");
+
+        // Show player name and kills in game over message
+        var customization = GetNode<PlayerCustomization>("/root/PlayerCustomization");
+        OnMessage($"{customization.PlayerName} - {_gm.Kills} kills! Press 'R' to restart.");
 
         // Show leaderboard with name entry (skip for tutorial — no scoring)
         var levelName = GetTree().CurrentScene.Name;

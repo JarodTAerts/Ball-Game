@@ -24,6 +24,7 @@ config/features=PackedStringArray("4.6", "C#", "Forward Plus")
 GameManager="*res://scripts/autoloads/GameManager.cs"
 WeaponManager="*res://scripts/autoloads/WeaponManager.cs"
 Settings="*res://scripts/autoloads/Settings.cs"
+PlayerCustomization="*res://scripts/autoloads/PlayerCustomization.cs"
 
 [display]
 

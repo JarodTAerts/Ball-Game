@@ -220,6 +220,33 @@ public partial class Player : RigidBody3D
         {
             _playerNormalMat = new StandardMaterial3D { AlbedoColor = Colors.White };
         }
+
+        // Apply custom skin from PlayerCustomization
+        var customization = GetNode<PlayerCustomization>("/root/PlayerCustomization");
+        try
+        {
+            var customSkin = customization.GenerateSkinTexture();
+            if (customSkin != null)
+            {
+                _playerNormalMat.AlbedoTexture = customSkin;
+                _playerNormalMat.AlbedoColor = Colors.White; // Use texture color
+            }
+            else
+            {
+                // Fallback to solid color if texture generation fails
+                _playerNormalMat.AlbedoColor = customization.SkinColor;
+                _playerNormalMat.AlbedoTexture = null;
+            }
+        }
+        catch (System.Exception e)
+        {
+            GD.PushError($"Error applying custom skin: {e.Message}");
+            // Fallback to solid color
+            _playerNormalMat.AlbedoColor = customization.SkinColor;
+            _playerNormalMat.AlbedoTexture = null;
+        }
+        _playerMesh.SetSurfaceOverrideMaterial(0, _playerNormalMat);
+
         _playerFlashMat = new StandardMaterial3D
         {
             AlbedoColor = new Color(1f, 0.15f, 0.1f),

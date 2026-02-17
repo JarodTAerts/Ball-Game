@@ -14,10 +14,12 @@ public partial class Settings : Node
     // ── Setting values (with defaults) ───────────────────────────────────
     public float MasterVolume { get; private set; } = 80f;  // 0–100
     public bool  ShowReticle  { get; private set; } = true;
+    public bool  ShowPlayerNames { get; private set; } = false;
 
     // ── Signals ──────────────────────────────────────────────────────────
     [Signal] public delegate void VolumeChangedEventHandler(float volume);
     [Signal] public delegate void ReticleChangedEventHandler(bool show);
+    [Signal] public delegate void PlayerNamesChangedEventHandler(bool show);
 
     public override void _Ready()
     {
@@ -42,6 +44,13 @@ public partial class Settings : Node
         Save();
     }
 
+    public void SetShowPlayerNames(bool value)
+    {
+        ShowPlayerNames = value;
+        EmitSignal(SignalName.PlayerNamesChanged, ShowPlayerNames);
+        Save();
+    }
+
     // ── Volume application ───────────────────────────────────────────────
 
     private void ApplyVolume()
@@ -60,6 +69,7 @@ public partial class Settings : Node
         var cfg = new ConfigFile();
         cfg.SetValue(Section, "master_volume", MasterVolume);
         cfg.SetValue(Section, "show_reticle", ShowReticle);
+        cfg.SetValue(Section, "show_player_names", ShowPlayerNames);
         cfg.Save(SavePath);
     }
 
@@ -70,5 +80,6 @@ public partial class Settings : Node
 
         MasterVolume = (float)cfg.GetValue(Section, "master_volume", 80f);
         ShowReticle  = (bool)cfg.GetValue(Section, "show_reticle", true);
+        ShowPlayerNames = (bool)cfg.GetValue(Section, "show_player_names", false);
     }
 }
