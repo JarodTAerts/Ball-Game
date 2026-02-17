@@ -21,7 +21,7 @@ public partial class Rocket : Area3D
     private const uint MaskWalls   = 1;   // layer 1
 
     private Vector3 _velocity;
-    private string  _firedBy = "player";
+    private Faction _firedByFaction = Faction.Team1;
     private bool    _dead;
 
     public override void _Ready()
@@ -36,10 +36,10 @@ public partial class Rocket : Area3D
         timer.Start();
     }
 
-    public void Initialize(Vector3 velocity, string firedBy)
+    public void Initialize(Vector3 velocity, Faction firedByFaction)
     {
         _velocity = velocity;
-        _firedBy = firedBy;
+        _firedByFaction = firedByFaction;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -53,9 +53,9 @@ public partial class Rocket : Area3D
 
         // Raycast sweep to prevent tunneling
         var spaceState = GetWorld3D().DirectSpaceState;
-        uint targetMask = _firedBy == "player"
+        uint targetMask = _firedByFaction == Faction.Team1
             ? MaskEnemies | MaskTerrain | MaskWalls
-            : MaskPlayer  | MaskTerrain | MaskWalls;
+            : MaskPlayer | MaskEnemies | MaskTerrain | MaskWalls;
 
         var query = PhysicsRayQueryParameters3D.Create(from, to);
         query.CollisionMask = targetMask;
@@ -77,13 +77,29 @@ public partial class Rocket : Area3D
     {
         if (_dead) return;
 
-        bool isValidTarget =
-            (_firedBy == "player" && body.IsInGroup(Groups.Enemies)) ||
-            (_firedBy == "enemy" && body.IsInGroup(Groups.Player)) ||
-            body.IsInGroup(Groups.Terrain);
+        // Check if we should explode (hit different faction or terrain)
+        bool shouldExplode = false;
 
-        if (!isValidTarget) return;
-        Explode();
+        if (body is IDamageable damageable)
+        {
+            Faction? targetFaction = body switch
+            {
+                Player p => p.PlayerFaction,
+                Enemy e => e.EnemyFaction,
+                _ => null
+            };
+
+            // Explode on different faction
+            if (targetFaction.HasValue && targetFaction.Value != _firedByFaction)
+                shouldExplode = true;
+        }
+        else if (body.IsInGroup(Groups.Terrain))
+        {
+            shouldExplode = true;
+        }
+
+        if (shouldExplode)
+            Explode();
     }
 
     private void Explode()
@@ -96,6 +112,7 @@ public partial class Rocket : Area3D
         explosion.Damage = Damage;
         explosion.Force = ExplosionForce;
         explosion.ExplosionRadius = ExplosionRadius;
+        explosion.FiredByFaction = _firedByFaction;
         QueueFree();
     }
 }

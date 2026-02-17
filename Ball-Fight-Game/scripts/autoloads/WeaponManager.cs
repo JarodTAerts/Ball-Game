@@ -12,154 +12,159 @@ namespace BallFightGame;
 /// </summary>
 public partial class WeaponManager : Node
 {
-    // Pre-loaded scenes (loaded once, not every frame)
-    private static readonly PackedScene BulletScene    = GD.Load<PackedScene>(Scenes.Bullet);
-    private static readonly PackedScene RocketScene    = GD.Load<PackedScene>(Scenes.Rocket);
-    private static readonly PackedScene GrenadeScene   = GD.Load<PackedScene>(Scenes.Grenade);
-    private static readonly PackedScene ExplosionScene = GD.Load<PackedScene>(Scenes.Explosion);
+	// Pre-loaded scenes (loaded once, not every frame)
+	private static readonly PackedScene BulletScene    = GD.Load<PackedScene>(Scenes.Bullet);
+	private static readonly PackedScene RocketScene    = GD.Load<PackedScene>(Scenes.Rocket);
+	private static readonly PackedScene GrenadeScene   = GD.Load<PackedScene>(Scenes.Grenade);
+	private static readonly PackedScene ExplosionScene = GD.Load<PackedScene>(Scenes.Explosion);
 
-    // Lazy-loaded to avoid static initialization issues (WeaponPickup.cs
-    // references WeaponManager, creating a circular static dependency)
-    private static PackedScene? _pickupScene;
-    private static PackedScene PickupScene =>
-        _pickupScene ??= GD.Load<PackedScene>(Scenes.WeaponPickup);
+	// Lazy-loaded to avoid static initialization issues (WeaponPickup.cs
+	// references WeaponManager, creating a circular static dependency)
+	private static PackedScene? _pickupScene;
+	private static PackedScene PickupScene =>
+		_pickupScene ??= GD.Load<PackedScene>(Scenes.WeaponPickup);
 
-    // ── Projectile Creation ──────────────────────────────────────────────
+	// ── Projectile Creation ──────────────────────────────────────────────
 
-    /// <summary>
-    /// Fire a single bullet from a spawn point in a given direction.
-    /// Used for enemy shots and any future physics-based projectile.
-    /// </summary>
-    public void FireBullet(Vector3 origin, Vector3 direction, float speed, float damage, string firedBy)
-    {
-        var bullet = BulletScene.Instantiate<Bullet>();
-        GetTree().CurrentScene.AddChild(bullet);
-        bullet.GlobalPosition = origin;
-        bullet.Initialize(direction.Normalized() * speed, damage, firedBy);
-    }
+	/// <summary>
+	/// Fire a single bullet from a spawn point in a given direction.
+	/// Used for enemy shots and any future physics-based projectile.
+	/// </summary>
+	public void FireBullet(Vector3 origin, Vector3 direction, float speed, float damage, Faction firedByFaction)
+	{
+		var bullet = BulletScene.Instantiate<Bullet>();
+		GetTree().CurrentScene.AddChild(bullet);
+		bullet.GlobalPosition = origin;
+		bullet.Initialize(direction.Normalized() * speed, damage, firedByFaction);
+	}
 
-    /// <summary>
-    /// Fire an instant hitscan tracer round. Performs a raycast immediately,
-    /// deals damage at the hit point, and draws a yellow tracer line that
-    /// fades out. Used for handgun, rifle.
-    /// </summary>
-    public void FireTracer(Vector3 origin, Vector3 direction, float maxRange,
-        float damage, string firedBy)
-    {
-        var tracer = new Tracer();
-        GetTree().CurrentScene.AddChild(tracer);
-        tracer.Fire(origin, direction, maxRange, damage, firedBy);
-    }
+	/// <summary>
+	/// Fire an instant hitscan tracer round. Performs a raycast immediately,
+	/// deals damage at the hit point, and draws a yellow tracer line that
+	/// fades out. Used for handgun, rifle.
+	/// </summary>
+	public void FireTracer(Vector3 origin, Vector3 direction, float maxRange,
+		float damage, Faction firedByFaction)
+	{
+		var tracer = new Tracer();
+		GetTree().CurrentScene.AddChild(tracer);
+		tracer.Fire(origin, direction, maxRange, damage, firedByFaction);
+	}
 
-    /// <summary>
-    /// Fire a shotgun blast of tracer rounds: 5 pellets in a 2D cone spread.
-    /// Spread pattern forms a cross/plus shape for better hit coverage.
-    /// </summary>
-    public void FireTracerShotgun(Vector3 origin, Vector3 forward, float maxRange,
-        float damage, string firedBy, float spreadDeg = 5f)
-    {
-        float spreadRad = Mathf.DegToRad(spreadDeg);
+	/// <summary>
+	/// Fire a shotgun blast of tracer rounds: 5 pellets in a 2D cone spread.
+	/// Spread pattern forms a cross/plus shape for better hit coverage.
+	/// </summary>
+	public void FireTracerShotgun(Vector3 origin, Vector3 forward, float maxRange,
+		float damage, Faction firedByFaction, float spreadDeg = 5f)
+	{
+		float spreadRad = Mathf.DegToRad(spreadDeg);
 
-        // Center pellet (straight ahead)
-        FireTracer(origin, forward, maxRange, damage, firedBy);
+		// Center pellet (straight ahead)
+		FireTracer(origin, forward, maxRange, damage, firedByFaction);
 
-        // 4 pellets in cardinal directions (up, down, left, right)
-        var right = forward.Cross(Vector3.Up).Normalized();
-        var up = right.Cross(forward).Normalized();
+		// 4 pellets in cardinal directions (up, down, left, right)
+		var right = forward.Cross(Vector3.Up).Normalized();
+		var up = right.Cross(forward).Normalized();
 
-        for (int i = 0; i < 7; i++)
-        {
-            // Rotate around the barrel axis to create 90° spacing
-            float angle = i * Mathf.Pi / 2f;
-            var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
-            // Tilt the forward vector toward the spread axis
-            var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
-            FireTracer(origin, dir, maxRange, damage, firedBy);
-        }
-    }
+		for (int i = 0; i < 7; i++)
+		{
+			// Rotate around the barrel axis to create 90° spacing
+			float angle = i * Mathf.Pi / 2f;
+			var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
+			// Tilt the forward vector toward the spread axis
+			var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
+			FireTracer(origin, dir, maxRange, damage, firedByFaction);
+		}
+	}
 
-    /// <summary>
-    /// Fire a shotgun blast of physical bullets: 5 pellets in a 2D cone spread.
-    /// </summary>
-    public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, string firedBy, float spreadDeg = 5f)
-    {
-        float spreadRad = Mathf.DegToRad(spreadDeg);
+	/// <summary>
+	/// Fire a shotgun blast of physical bullets: 5 pellets in a 2D cone spread.
+	/// </summary>
+	public void FireShotgun(Vector3 origin, Vector3 forward, float speed, float damage, Faction firedByFaction, float spreadDeg = 5f)
+	{
+		float spreadRad = Mathf.DegToRad(spreadDeg);
 
-        // Center pellet
-        FireBullet(origin, forward, speed, damage, firedBy);
+		// Center pellet
+		FireBullet(origin, forward, speed, damage, firedByFaction);
 
-        // 4 pellets in cardinal directions
-        var right = forward.Cross(Vector3.Up).Normalized();
-        var up = right.Cross(forward).Normalized();
+		// 4 pellets in cardinal directions
+		var right = forward.Cross(Vector3.Up).Normalized();
+		var up = right.Cross(forward).Normalized();
 
-        for (int i = 0; i < 4; i++)
-        {
-            float angle = i * Mathf.Pi / 2f;
-            var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
-            var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
-            FireBullet(origin, dir, speed, damage, firedBy);
-        }
-    }
+		for (int i = 0; i < 4; i++)
+		{
+			float angle = i * Mathf.Pi / 2f;
+			var spreadAxis = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)).Normalized();
+			var dir = forward.Rotated(spreadAxis, spreadRad).Normalized();
+			FireBullet(origin, dir, speed, damage, firedByFaction);
+		}
+	}
 
-    /// <summary>
-    /// Fire a rocket projectile.
-    /// </summary>
-    public void FireRocket(Vector3 origin, Vector3 direction, float speed, string firedBy)
-    {
-        var rocket = RocketScene.Instantiate<Rocket>();
-        GetTree().CurrentScene.AddChild(rocket);
-        rocket.GlobalPosition = origin;
-        rocket.Initialize(direction.Normalized() * speed, firedBy);
-    }
+	/// <summary>
+	/// Fire a rocket projectile.
+	/// </summary>
+	public void FireRocket(Vector3 origin, Vector3 direction, float speed, Faction firedByFaction)
+	{
+		if (RocketScene == null)
+		{
+			GD.PrintErr("[WeaponManager] FireRocket: RocketScene not assigned!");
+			return;
+		}
+		var rocket = RocketScene.Instantiate<Rocket>();
+		GetTree().CurrentScene.AddChild(rocket);
+		rocket.GlobalPosition = origin;
+		rocket.Initialize(direction.Normalized() * speed, firedByFaction);
+	}
 
-    /// <summary>
-    /// Throw a grenade with arc physics.
-    /// </summary>
-    public void ThrowGrenade(Vector3 origin, Vector3 direction, float speed)
-    {
-        var grenade = GrenadeScene.Instantiate<Grenade>();
-        GetTree().CurrentScene.AddChild(grenade);
-        grenade.GlobalPosition = origin;
-        // Give an upward arc plus forward velocity
-        grenade.LinearVelocity = direction.Normalized() * speed + Vector3.Up * 8f;
-    }
+	/// <summary>
+	/// Throw a grenade with arc physics.
+	/// </summary>
+	public void ThrowGrenade(Vector3 origin, Vector3 direction, float speed)
+	{
+		var grenade = GrenadeScene.Instantiate<Grenade>();
+		GetTree().CurrentScene.AddChild(grenade);
+		grenade.GlobalPosition = origin;
+		// Give an upward arc plus forward velocity
+		grenade.LinearVelocity = direction.Normalized() * speed + Vector3.Up * 8f;
+	}
 
-    /// <summary>
-    /// Spawn an explosion effect at a world position.
-    /// </summary>
-    public Explosion SpawnExplosion(Vector3 position)
-    {
-        var explosion = ExplosionScene.Instantiate<Explosion>();
-        GetTree().CurrentScene.AddChild(explosion);
-        explosion.GlobalPosition = position;
-        return explosion;
-    }
+	/// <summary>
+	/// Spawn an explosion effect at a world position.
+	/// </summary>
+	public Explosion SpawnExplosion(Vector3 position)
+	{
+		var explosion = ExplosionScene.Instantiate<Explosion>();
+		GetTree().CurrentScene.AddChild(explosion);
+		explosion.GlobalPosition = position;
+		return explosion;
+	}
 
-    // ── Weapon Drop Spawning ─────────────────────────────────────────────
+	// ── Weapon Drop Spawning ─────────────────────────────────────────────
 
-    /// <summary>
-    /// Spawn a weapon pickup at a world position. Used both when the player
-    /// drops their current weapon and when the WeaponDropSpawner creates
-    /// milestone rewards.
-    ///
-    /// This single method replaces Unity's DestroyCurrentCreateDrop() which
-    /// had 6 copy-pasted if/else branches + OverlapSphere lookups.
-    /// </summary>
-    public void SpawnDrop(WeaponData weapon, int loadedAmmo, int totalAmmo, Vector3 position, bool dropFromSky = true)
-    {
-        GD.Print("[WeaponManager] SpawnDrop called: ", weapon?.DisplayName ?? "null", " at ", position);
-        var scene = PickupScene;
-        if (scene == null)
-        {
-            GD.Print("[WeaponManager] ERROR: PickupScene is null! Path: ", Scenes.WeaponPickup);
-            return;
-        }
-        var pickup = scene.Instantiate<WeaponPickup>();
-        pickup.DropFromSky = dropFromSky;
-        GD.Print("[WeaponManager] Pickup instantiated");
-        GetTree().CurrentScene.AddChild(pickup);
-        pickup.GlobalPosition = position;
-        pickup.Initialize(weapon, loadedAmmo, totalAmmo);
-        GD.Print("[WeaponManager] Pickup spawned at ", pickup.GlobalPosition);
-    }
+	/// <summary>
+	/// Spawn a weapon pickup at a world position. Used both when the player
+	/// drops their current weapon and when the WeaponDropSpawner creates
+	/// milestone rewards.
+	///
+	/// This single method replaces Unity's DestroyCurrentCreateDrop() which
+	/// had 6 copy-pasted if/else branches + OverlapSphere lookups.
+	/// </summary>
+	public void SpawnDrop(WeaponData weapon, int loadedAmmo, int totalAmmo, Vector3 position, bool dropFromSky = true)
+	{
+		GD.Print("[WeaponManager] SpawnDrop called: ", weapon?.DisplayName ?? "null", " at ", position);
+		var scene = PickupScene;
+		if (scene == null)
+		{
+			GD.Print("[WeaponManager] ERROR: PickupScene is null! Path: ", Scenes.WeaponPickup);
+			return;
+		}
+		var pickup = scene.Instantiate<WeaponPickup>();
+		pickup.DropFromSky = dropFromSky;
+		GD.Print("[WeaponManager] Pickup instantiated");
+		GetTree().CurrentScene.AddChild(pickup);
+		pickup.GlobalPosition = position;
+		pickup.Initialize(weapon, loadedAmmo, totalAmmo);
+		GD.Print("[WeaponManager] Pickup spawned at ", pickup.GlobalPosition);
+	}
 }

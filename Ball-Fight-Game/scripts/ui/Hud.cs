@@ -704,6 +704,19 @@ public partial class Hud : CanvasLayer
         ProcessMode = ProcessModeEnum.Always;
     }
 
+    public override void _ExitTree()
+    {
+        // Explicitly disconnect so a disposed background HUD doesn't keep receiving
+        // signals and throwing ObjectDisposedException, which aborts signal dispatch
+        // before the real in-game HUD can update the kill label.
+        if (_gm != null)
+        {
+            _gm.KillsChanged      -= OnKillsChanged;
+            _gm.GameOverTriggered -= OnGameOver;
+            _gm.GamePaused        -= OnPauseChanged;
+        }
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event.IsActionPressed(InputActions.Pause))
@@ -717,6 +730,12 @@ public partial class Hud : CanvasLayer
                 return;
             }
             _gm.TogglePause();
+            // Belt-and-suspenders: directly sync visibility so the pause menu
+            // always appears even if the GamePaused signal misfires.
+            bool isPaused = GetTree().Paused;
+            _pauseOverlay.Visible = isPaused;
+            _pauseMenu.Visible = isPaused;
+            _optionsMenu.Visible = false;
             GetViewport().SetInputAsHandled();
             return;
         }

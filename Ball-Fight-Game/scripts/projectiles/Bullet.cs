@@ -18,7 +18,7 @@ public partial class Bullet : Area3D
 {
     private Vector3 _velocity;
     private float   _damage;
-    private string  _firedBy = "player";
+    private Faction _firedByFaction = Faction.Team1;
     private int     _bouncesLeft = 3;     // max ricochets before destroy
     private bool    _dead;                // prevent double-processing
 
@@ -80,11 +80,11 @@ public partial class Bullet : Area3D
         timer.Start();
     }
 
-    public void Initialize(Vector3 velocity, float damage, string firedBy)
+    public void Initialize(Vector3 velocity, float damage, Faction firedByFaction)
     {
         _velocity = velocity;
         _damage = damage;
-        _firedBy = firedBy;
+        _firedByFaction = firedByFaction;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -100,9 +100,9 @@ public partial class Bullet : Area3D
         var spaceState = GetWorld3D().DirectSpaceState;
 
         // Build mask: targets + terrain + walls
-        uint targetMask = _firedBy == "player"
+        uint targetMask = _firedByFaction == Faction.Team1
             ? MaskEnemies | MaskTerrain | MaskWalls
-            : MaskPlayer  | MaskTerrain | MaskWalls;
+            : MaskPlayer | MaskEnemies | MaskTerrain | MaskWalls;
 
         var query = PhysicsRayQueryParameters3D.Create(from, to);
         query.CollisionMask = targetMask;
@@ -122,19 +122,23 @@ public partial class Bullet : Area3D
 
             if (collider is Node3D node)
             {
-                if (_firedBy == "player" && node.IsInGroup(Groups.Enemies))
+                // Check if target can be damaged and is a different faction
+                if (node is IDamageable damageable)
                 {
-                    if (node is Enemy enemy)
-                        enemy.TakeDamage(_damage);
-                    Die();
-                    return;
-                }
-                else if (_firedBy == "enemy" && node.IsInGroup(Groups.Player))
-                {
-                    if (node is Player player)
-                        player.TakeDamage(_damage);
-                    Die();
-                    return;
+                    Faction? targetFaction = node switch
+                    {
+                        Player p => p.PlayerFaction,
+                        Enemy e => e.EnemyFaction,
+                        _ => null
+                    };
+
+                    // Only damage different faction
+                    if (targetFaction.HasValue && targetFaction.Value != _firedByFaction)
+                    {
+                        damageable.TakeDamage(_damage);
+                        Die();
+                        return;
+                    }
                 }
                 else if (node.IsInGroup(Groups.Terrain))
                 {
@@ -161,19 +165,26 @@ public partial class Bullet : Area3D
     {
         if (_dead) return;
 
-        if (_firedBy == "player" && body.IsInGroup(Groups.Enemies))
+        // Check if target can be damaged and is a different faction
+        if (body is IDamageable damageable)
         {
-            if (body is Enemy enemy)
-                enemy.TakeDamage(_damage);
-            Die();
+            Faction? targetFaction = body switch
+            {
+                Player p => p.PlayerFaction,
+                Enemy e => e.EnemyFaction,
+                _ => null
+            };
+
+            // Only damage different faction
+            if (targetFaction.HasValue && targetFaction.Value != _firedByFaction)
+            {
+                damageable.TakeDamage(_damage);
+                Die();
+                return;
+            }
         }
-        else if (_firedBy == "enemy" && body.IsInGroup(Groups.Player))
-        {
-            if (body is Player player)
-                player.TakeDamage(_damage);
-            Die();
-        }
-        else if (body.IsInGroup(Groups.Terrain))
+
+        if (body.IsInGroup(Groups.Terrain))
         {
             var dir = _velocity.Normalized();
             // Quick raycast for normal

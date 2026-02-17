@@ -15,13 +15,29 @@ namespace BallFightGame;
 /// This replaces the old Enemy.cs + GunEnemy.cs split. All behavior is now
 /// in one script, selected by data — no subclasses needed.
 /// </summary>
-public partial class Enemy : RigidBody3D
+public partial class Enemy : RigidBody3D, IDamageable
 {
 	[Signal] public delegate void KilledEventHandler();
 
 	[Export] public EnemyData? Stats { get; set; }
 
 	public float Health { get; protected set; }
+
+	/// <summary>
+	/// Faction for damage system. Enemies can damage different factions.
+	/// </summary>
+	public Faction EnemyFaction { get; set; } = Faction.Team2;
+
+	/// <summary>
+	/// Whether this enemy is still alive.
+	/// </summary>
+	public bool IsAlive => Health > 0;
+
+	/// <summary>
+	/// Pluggable AI behavior. Determines what this enemy targets and attacks.
+	/// Defaults to PlayerTargetingAI if not set.
+	/// </summary>
+	public IEnemyAI? AI { get; set; }
 
 	// Cached references
 	private GameManager   _gm = null!;
@@ -191,32 +207,48 @@ public partial class Enemy : RigidBody3D
 		// Mount weapon if armed
 		if (Stats is { IsArmed: true })
 			MountWeapon(Stats.Weapon!);
+
+		// Initialize AI (default to player targeting if not set)
+		if (AI == null)
+		{
+			AI = new PlayerTargetingAI();
+		}
+		AI.Initialize(this);
+
+		// Add team indicator
+		var teamIndicator = new TeamIndicator();
+		AddChild(teamIndicator);
+		teamIndicator.SetTeamColor(EnemyFaction);
 	}
 
 	public override void _PhysicsProcess(double delta)
 	{
 		if (_gm.GameOver) return;
 
+		// Update AI behavior
+		AI?.Update(this, delta);
+
 		ClampToBoundary();
 
 		if (!_chasing) return;
 
-		var player = _gm.Player;
-		if (player == null) return;
+		// Get target from AI (could be player, another enemy, etc.)
+		var target = AI?.GetTarget(this);
+		if (target == null) return;
 
-		float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
+		float dist = GlobalPosition.DistanceTo(target.GlobalPosition);
 		float speed = Stats?.ChaseSpeed ?? 5f;
 
 		if (Stats is { IsArmed: true })
 		{
 			// Armed enemies use weapon-aware movement
-			HandleArmedChase(player, dist, speed);
-			HandleWeaponAttack(player, dist);
+			HandleArmedChase(target, dist, speed);
+			HandleWeaponAttack(target, dist);
 		}
 		else
 		{
-			// Unarmed: always charge toward the player
-			var direction = (player.GlobalPosition - GlobalPosition).Normalized();
+			// Unarmed: always charge toward the target
+			var direction = (target.GlobalPosition - GlobalPosition).Normalized();
 			ApplyCentralForce(new Vector3(direction.X, 0, direction.Z) * speed);
 		}
 	}
@@ -319,15 +351,15 @@ public partial class Enemy : RigidBody3D
 	///   - Ranged: stay near OptimalRange, back up if too close
 	///   - Melee: charge in until within reach
 	/// </summary>
-	private void HandleArmedChase(Player player, float dist, float speed)
+	private void HandleArmedChase(Node3D target, float dist, float speed)
 	{
 		var weapon = Stats!.Weapon!;
-		var toPlayer = (player.GlobalPosition - GlobalPosition);
-		var dirFlat = new Vector3(toPlayer.X, 0, toPlayer.Z).Normalized();
+		var toTarget = (target.GlobalPosition - GlobalPosition);
+		var dirFlat = new Vector3(toTarget.X, 0, toTarget.Z).Normalized();
 
 		if (weapon.Category == WeaponCategory.Melee)
 		{
-			// Melee: always charge toward the player
+			// Melee: always charge toward the target
 			ApplyCentralForce(dirFlat * speed);
 		}
 		else
@@ -353,48 +385,48 @@ public partial class Enemy : RigidBody3D
 
 	// ── Weapon Attack ────────────────────────────────────────────────────
 
-	private void HandleWeaponAttack(Player player, float dist)
+	private void HandleWeaponAttack(Node3D target, float dist)
 	{
 		var weapon = Stats!.Weapon!;
 
-		// Aim weapon mount at the player
-		AimWeaponAtPlayer(player);
+		// Aim weapon mount at the target
+		AimWeaponAtTarget(target);
 
 		if (weapon.Category == WeaponCategory.Ranged)
-			HandleRangedAttack(player, weapon, dist);
+			HandleRangedAttack(target, weapon, dist);
 		else
-			HandleMeleeAttack(player, weapon, dist);
+			HandleMeleeAttack(target, weapon, dist);
 	}
 
 	/// <summary>
 	/// Keeps the weapon pivot tracking the enemy's position and rotates
-	/// the mount to face the player. Because _weaponPivot is top-level,
+	/// the mount to face the target. Because _weaponPivot is top-level,
 	/// it doesn't inherit the RigidBody's spin — it stays oriented
 	/// correctly just like the player's Pivot node.
 	/// </summary>
-	private void AimWeaponAtPlayer(Player player)
+	private void AimWeaponAtTarget(Node3D target)
 	{
 		if (_weaponPivot == null || _weaponMount == null) return;
 
 		// Track enemy position (top-level doesn't auto-follow)
 		_weaponPivot.GlobalPosition = GlobalPosition;
 
-		// LookAt the player from the mount position — same as player's
+		// LookAt the target from the mount position — same as player's
 		// UpdateAimPoint does for the player's WeaponMount
 		var mountPos = _weaponMount.GlobalPosition;
-		var toPlayer = player.GlobalPosition - mountPos;
-		if (toPlayer.LengthSquared() > 0.01f)
+		var toTarget = target.GlobalPosition - mountPos;
+		if (toTarget.LengthSquared() > 0.01f)
 		{
-			_weaponMount.LookAt(mountPos + toPlayer, Vector3.Up);
+			_weaponMount.LookAt(mountPos + toTarget, Vector3.Up);
 		}
 	}
 
 	/// <summary>
-	/// Fire ranged weapon at the player if within range and off cooldown.
+	/// Fire ranged weapon at the target if within range and off cooldown.
 	/// Uses per-enemy fire rate and accuracy spread (much slower and less
 	/// accurate than the player).
 	/// </summary>
-	private void HandleRangedAttack(Player player, WeaponData weapon, float dist)
+	private void HandleRangedAttack(Node3D target, WeaponData weapon, float dist)
 	{
 		// Only fire within effective range (1.3× optimal)
 		if (dist > weapon.OptimalRange * 1.3f) return;
@@ -404,7 +436,7 @@ public partial class Enemy : RigidBody3D
 		// Handle burst fire (rifle): fire remaining burst shots rapidly
 		if (_burstRemaining > 0 && now >= _nextBurstShotTime)
 		{
-			FireOneShot(player, weapon);
+			FireOneShot(target, weapon);
 			_burstRemaining--;
 			_nextBurstShotTime = now + 0.15f; // 150ms between burst shots
 			return;
@@ -417,13 +449,13 @@ public partial class Enemy : RigidBody3D
 		{
 			// Start a burst
 			_burstRemaining = Stats!.EffectiveBurstCount;
-			FireOneShot(player, weapon);
+			FireOneShot(target, weapon);
 			_burstRemaining--;
 			_nextBurstShotTime = now + 0.15f;
 		}
 		else
 		{
-			FireOneShot(player, weapon);
+			FireOneShot(target, weapon);
 		}
 
 		_nextWeaponAttackTime = now + Stats!.EffectiveFireRate;
@@ -432,10 +464,10 @@ public partial class Enemy : RigidBody3D
 	/// <summary>
 	/// Fires a single shot with accuracy spread applied.
 	/// </summary>
-	private void FireOneShot(Player player, WeaponData weapon)
+	private void FireOneShot(Node3D target, WeaponData weapon)
 	{
 		var origin = _bulletSpawn?.GlobalPosition ?? _weaponMount!.GlobalPosition;
-		var perfectDir = (player.GlobalPosition - origin).Normalized();
+		var perfectDir = (target.GlobalPosition - origin).Normalized();
 
 		// Apply accuracy spread — random angular deviation
 		var direction = ApplyAccuracySpread(perfectDir, Stats!.EffectiveAccuracyDeg);
@@ -444,15 +476,15 @@ public partial class Enemy : RigidBody3D
 		{
 			case WeaponType.Shotgun:
 				_wm.FireTracerShotgun(origin, direction,
-					200f, weapon.Damage, "enemy", weapon.SpreadAngleDeg);
+					200f, weapon.Damage, Faction.Team2, weapon.SpreadAngleDeg);
 				break;
 
 			case WeaponType.RocketLauncher:
-				_wm.FireRocket(origin, direction, weapon.BulletSpeed, "enemy");
+				_wm.FireRocket(origin, direction, weapon.BulletSpeed, Faction.Team2);
 				break;
 
 			default: // Handgun, Rifle
-				_wm.FireTracer(origin, direction, 200f, weapon.Damage, "enemy");
+				_wm.FireTracer(origin, direction, 200f, weapon.Damage, Faction.Team2);
 				break;
 		}
 	}
@@ -484,9 +516,9 @@ public partial class Enemy : RigidBody3D
 	}
 
 	/// <summary>
-	/// Swing melee weapon at the player when within reach.
+	/// Swing melee weapon at the target when within reach.
 	/// </summary>
-	private void HandleMeleeAttack(Player player, WeaponData weapon, float dist)
+	private void HandleMeleeAttack(Node3D target, WeaponData weapon, float dist)
 	{
 		if (_isMeleeSwinging) return;
 		if (dist > weapon.MeleeReach) return;
@@ -525,14 +557,18 @@ public partial class Enemy : RigidBody3D
 		if (_weaponModelInstance != null)
 			_weaponModelInstance.Rotation = new Vector3(0, angle, 0);
 
-		// Check if player is within reach (damage once per swing)
-		var player = _gm.Player;
-		if (player == null) return;
+		// Check if target is within reach (damage once per swing)
+		var target = AI?.GetTarget(this);
+		if (target == null) return;
 
-		float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
-		if (dist <= weapon.MeleeReach && _meleeHitThisSwing.Add(player.GetInstanceId()))
+		float dist = GlobalPosition.DistanceTo(target.GlobalPosition);
+		if (dist <= weapon.MeleeReach && _meleeHitThisSwing.Add(target.GetInstanceId()))
 		{
-			player.TakeDamage(weapon.SwingDamage);
+			// Apply damage to target (player or enemy)
+			if (target is Player player)
+				player.TakeDamage(weapon.SwingDamage);
+			else if (target is Enemy enemy)
+				enemy.TakeDamage(weapon.SwingDamage);
 		}
 	}
 
@@ -591,6 +627,13 @@ public partial class Enemy : RigidBody3D
 
 	protected virtual void Die()
 	{
+		// Notify other enemies' AIs that this enemy died
+		foreach (var node in GetTree().GetNodesInGroup(Groups.Enemies))
+		{
+			if (node is Enemy enemy && enemy != this)
+				enemy.AI?.OnTargetDied(this);
+		}
+
 		_gm.RegisterKill();
 		EmitSignal(SignalName.Killed);
 		SpawnConfetti();
@@ -633,8 +676,7 @@ public partial class Enemy : RigidBody3D
 
 	private void OnDamageBodyEntered(Node3D body)
 	{
-		if (body is Player player)
-			TryContactAttack(player);
+		TryContactAttack(body);
 	}
 
 	public void ProcessContactDamage()
@@ -644,12 +686,11 @@ public partial class Enemy : RigidBody3D
 
 		foreach (var body in damageArea.GetOverlappingBodies())
 		{
-			if (body is Player player)
-				TryContactAttack(player);
+			TryContactAttack(body);
 		}
 	}
 
-	private void TryContactAttack(Player player)
+	private void TryContactAttack(Node3D body)
 	{
 		float cooldown = Stats?.ContactCooldown ?? 1f;
 		float damage   = Stats?.ContactDamage ?? 2f;
@@ -657,8 +698,27 @@ public partial class Enemy : RigidBody3D
 
 		if (now < _nextContactAttackTime) return;
 
-		player.TakeDamage(damage);
-		_nextContactAttackTime = now + cooldown;
+		// Determine target and its faction
+		IDamageable? target = null;
+		Faction? targetFaction = null;
+
+		if (body is Player player)
+		{
+			target = player;
+			targetFaction = player.PlayerFaction;
+		}
+		else if (body is Enemy enemy && enemy != this)
+		{
+			target = enemy;
+			targetFaction = enemy.EnemyFaction;
+		}
+
+		// Only damage different faction
+		if (target != null && targetFaction.HasValue && targetFaction.Value != EnemyFaction)
+		{
+			target.TakeDamage(damage);
+			_nextContactAttackTime = now + cooldown;
+		}
 	}
 
 	// ── Chase Range ──────────────────────────────────────────────────────

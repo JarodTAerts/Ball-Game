@@ -36,7 +36,7 @@ public partial class Tracer : Node3D
     /// Damage is applied instantly via raycast; the visual travels over time.
     /// </summary>
     public void Fire(Vector3 origin, Vector3 direction, float maxRange,
-        float damage, string firedBy)
+        float damage, Faction firedByFaction)
     {
         _startPos = origin;
         _direction = direction.Normalized();
@@ -44,9 +44,9 @@ public partial class Tracer : Node3D
 
         // ── Instant raycast for damage ───────────────────────────────────
         var spaceState = GetWorld3D().DirectSpaceState;
-        uint targetMask = firedBy == "player"
+        uint targetMask = firedByFaction == Faction.Team1
             ? MaskEnemies | MaskTerrain | MaskWalls
-            : MaskPlayer  | MaskTerrain | MaskWalls;
+            : MaskPlayer | MaskEnemies | MaskTerrain | MaskWalls;
 
         var endPoint = origin + _direction * maxRange;
         var query = PhysicsRayQueryParameters3D.Create(origin, endPoint);
@@ -63,13 +63,23 @@ public partial class Tracer : Node3D
 
             if (collider is Node3D node)
             {
-                if (firedBy == "player" && node is Enemy enemy)
-                    enemy.TakeDamage(damage);
-                else if (firedBy == "enemy" && node is Player player)
-                    player.TakeDamage(damage);
+                // Check if target can be damaged and is a different faction
+                if (node is IDamageable damageable)
+                {
+                    Faction? targetFaction = node switch
+                    {
+                        Player p => p.PlayerFaction,
+                        Enemy e => e.EnemyFaction,
+                        _ => null
+                    };
 
-                // Impact effect on terrain/walls (not on enemies — they flash)
-                _hasImpactEffect = !(node is Enemy) && !(node is Player);
+                    // Only damage different faction
+                    if (targetFaction.HasValue && targetFaction.Value != firedByFaction)
+                        damageable.TakeDamage(damage);
+                }
+
+                // Impact effect on terrain/walls (not on damageable entities — they flash)
+                _hasImpactEffect = !(node is IDamageable);
             }
         }
         else

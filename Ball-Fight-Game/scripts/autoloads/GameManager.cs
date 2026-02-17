@@ -82,7 +82,18 @@ public partial class GameManager : Node
         ResetState();
         GetTree().Paused = false;
         Input.MouseMode = Input.MouseModeEnum.Visible;
-        GetTree().ChangeSceneToFile(Scenes.StartMenu);
+        GetTree().ChangeSceneToFile(Scenes.MenuBackground);
+    }
+
+    /// <summary>
+    /// Resets all game state before starting a new level from the menu.
+    /// Must be called before ChangeSceneToFile so kill counts from
+    /// menu background enemies don't carry over into gameplay.
+    /// </summary>
+    public void PrepareForNewGame()
+    {
+        ResetState();
+        GetTree().Paused = false;
     }
 
     // ── Internals ────────────────────────────────────────────────────────

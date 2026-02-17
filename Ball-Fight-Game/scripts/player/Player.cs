@@ -20,7 +20,7 @@ namespace BallFightGame;
 ///     └── FlashlightArm → SpotLight3D
 /// Rotating the Player rotates all arms — no manual trig needed.
 /// </summary>
-public partial class Player : RigidBody3D
+public partial class Player : RigidBody3D, IDamageable
 {
     // ── Signals ──────────────────────────────────────────────────────────
     [Signal] public delegate void HealthChangedEventHandler(float health);
@@ -63,6 +63,16 @@ public partial class Player : RigidBody3D
     public float      Health       { get; private set; }
     public float      Shield       { get; private set; }  // placeholder for future armor
     public float      Energy       { get; private set; }
+
+    /// <summary>
+    /// Player faction for damage system.
+    /// </summary>
+    public Faction PlayerFaction { get; } = Faction.Team1;
+
+    /// <summary>
+    /// Whether this player is still alive.
+    /// </summary>
+    public bool IsAlive => Health > 0;
     public WeaponData? CurrentWeapon { get; private set; }
     public WeaponData? CurrentMelee  { get; private set; }  // left-hand melee weapon
     public int        LoadedAmmo   { get; private set; }
@@ -254,6 +264,11 @@ public partial class Player : RigidBody3D
             Emission = new Color(1f, 0f, 0f),
             EmissionEnergyMultiplier = 0.6f,
         };
+
+        // Add team indicator
+        var teamIndicator = new TeamIndicator();
+        AddChild(teamIndicator);
+        teamIndicator.SetTeamColor(PlayerFaction);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -852,19 +867,19 @@ public partial class Player : RigidBody3D
         {
             case WeaponType.Shotgun:
                 _wm.FireTracerShotgun(origin, forward,
-                    200f, CurrentWeapon.Damage, "player",
+                    200f, CurrentWeapon.Damage, Faction.Team1,
                     CurrentWeapon.SpreadAngleDeg);
                 LoadedAmmo -= 1;
                 break;
 
             case WeaponType.RocketLauncher:
-                _wm.FireRocket(origin, forward, CurrentWeapon.BulletSpeed, "player");
+                _wm.FireRocket(origin, forward, CurrentWeapon.BulletSpeed, Faction.Team1);
                 LoadedAmmo -= 1;
                 break;
 
             default: // Handgun, Rifle — hitscan tracers
                 _wm.FireTracer(origin, forward,
-                    200f, CurrentWeapon.Damage, "player");
+                    200f, CurrentWeapon.Damage, Faction.Team1);
                 LoadedAmmo -= 1;
                 break;
         }

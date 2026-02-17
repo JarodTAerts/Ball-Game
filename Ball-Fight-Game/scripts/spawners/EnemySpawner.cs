@@ -64,12 +64,23 @@ public partial class EnemySpawner : Node
         _gm.KillsChanged += OnKillsChanged;
     }
 
+    public override void _ExitTree()
+    {
+        if (_gm != null)
+            _gm.KillsChanged -= OnKillsChanged;
+    }
+
     /// <summary>
     /// Gradually speed up spawn rate from InitialSpawnRate to SpawnRate
     /// over the first RampUpKills kills, making the early game easier.
     /// </summary>
     private void OnKillsChanged(int kills)
     {
+        // Guard: the spawner may have been QueueFree'd (e.g. replaced by MenuEnemySpawner)
+        // but the signal connection is still live until the next frame.
+        if (_timer == null || !GodotObject.IsInstanceValid(_timer))
+            return;
+
         if (kills >= RampUpKills)
         {
             _timer.WaitTime = SpawnRate;

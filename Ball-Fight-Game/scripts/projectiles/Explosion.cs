@@ -24,6 +24,12 @@ public partial class Explosion : Area3D
     /// </summary>
     [Export] public bool IgnorePlayer { get; set; } = false;
 
+    /// <summary>
+    /// Faction that created this explosion. Used for faction-based damage.
+    /// If null, uses legacy IgnorePlayer behavior.
+    /// </summary>
+    public Faction? FiredByFaction { get; set; } = null;
+
     private static readonly AudioStream ExplosionSound =
         GD.Load<AudioStream>("res://assets/sounds/explosion.mp3");
 
@@ -156,9 +162,24 @@ public partial class Explosion : Area3D
         {
             bool isPlayer = body is Player;
 
-            // Skip player if this explosion shouldn't hurt them
-            // (e.g. enemy death pops)
+            // Legacy behavior: Skip player if IgnorePlayer is set
             if (isPlayer && IgnorePlayer) continue;
+
+            // Faction-based damage: only damage different factions
+            bool shouldDamage = true;
+            if (FiredByFaction.HasValue && body is IDamageable damageable)
+            {
+                Faction? targetFaction = body switch
+                {
+                    Player p => p.PlayerFaction,
+                    Enemy e => e.EnemyFaction,
+                    _ => null
+                };
+
+                // Don't damage same faction
+                if (targetFaction.HasValue && targetFaction.Value == FiredByFaction.Value)
+                    shouldDamage = false;
+            }
 
             if (body is RigidBody3D rb)
             {
@@ -168,10 +189,13 @@ public partial class Explosion : Area3D
                 rb.ApplyImpulse(forceDir * Force);
             }
 
-            if (body is Enemy enemy)
-                enemy.TakeDamage(Damage);
-            else if (body is Player player)
-                player.TakeDamage(Damage);
+            if (shouldDamage)
+            {
+                if (body is Enemy enemy)
+                    enemy.TakeDamage(Damage);
+                else if (body is Player player)
+                    player.TakeDamage(Damage);
+            }
         }
 
         // Self-destruct after effects finish

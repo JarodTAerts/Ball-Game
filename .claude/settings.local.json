@@ -1,12 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Read", 
-      "Edit", 
+      "Read",
+      "Edit",
       "grep",
       "glob",
       "Bash(dotnet build:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(grep:*)"
     ],
     "ask": [
       "Bash"

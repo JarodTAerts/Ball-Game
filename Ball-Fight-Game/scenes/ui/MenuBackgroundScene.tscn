@@ -1,0 +1,288 @@
+[gd_scene load_steps=5 format=3 uid="uid://menu_background_scene"]
+
+[ext_resource type="Script" path="res://scripts/ui/MenuBackgroundController.cs" id="1_menu_controller"]
+[ext_resource type="Script" path="res://scripts/ui/MenuCamera.cs" id="2_menu_camera"]
+[ext_resource type="Script" path="res://scripts/ui/PlayerPreviewController.cs" id="3_preview_controller"]
+[ext_resource type="Script" path="res://scripts/ui/MenuCustomizationPanel.cs" id="4_customization_panel"]
+
+[node name="MenuBackgroundScene" type="Node"]
+
+[node name="Background3D" type="SubViewportContainer" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Background3D"]
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="MenuCamera" type="Camera3D" parent="Background3D/SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 0.5, 0.866025, 0, -0.866025, 0.5, 25, 20, 0)
+fov = 75.0
+current = true
+script = ExtResource("2_menu_camera")
+OrbitRadius = 25.0
+OrbitHeight = 20.0
+OrbitSpeed = 0.05
+LookAtHeight = 2.0
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="MainPanel" type="Control" parent="UILayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="UILayer/MainPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.101961, 0.101961, 0.180392, 0.3)
+
+[node name="ContentHBox" type="HBoxContainer" parent="UILayer/MainPanel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -640.0
+offset_top = -360.0
+offset_right = 640.0
+offset_bottom = 360.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 50
+
+[node name="LeftSide" type="VBoxContainer" parent="UILayer/MainPanel/ContentHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+size_flags_stretch_ratio = 0.6
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="UILayer/MainPanel/ContentHBox/LeftSide"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 56
+text = "BALL FIGHT"
+horizontal_alignment = 1
+
+[node name="Spacer1" type="Control" parent="UILayer/MainPanel/ContentHBox/LeftSide"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="ButtonContainer" type="VBoxContainer" parent="UILayer/MainPanel/ContentHBox/LeftSide"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="PlayButton" type="Button" parent="UILayer/MainPanel/ContentHBox/LeftSide/ButtonContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Play"
+
+[node name="TutorialButton" type="Button" parent="UILayer/MainPanel/ContentHBox/LeftSide/ButtonContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Tutorial"
+
+[node name="LeaderboardButton" type="Button" parent="UILayer/MainPanel/ContentHBox/LeftSide/ButtonContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Leaderboard"
+
+[node name="InfoButton" type="Button" parent="UILayer/MainPanel/ContentHBox/LeftSide/ButtonContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Info"
+
+[node name="QuitButton" type="Button" parent="UILayer/MainPanel/ContentHBox/LeftSide/ButtonContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Quit"
+
+[node name="RightSide" type="PanelContainer" parent="UILayer/MainPanel/ContentHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
+
+[node name="VBox" type="VBoxContainer" parent="UILayer/MainPanel/ContentHBox/RightSide"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="PlayerNameLabel" type="Label" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Player Preview"
+horizontal_alignment = 1
+
+[node name="PlayerPreview" type="SubViewportContainer" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox"]
+custom_minimum_size = Vector2(550, 550)
+layout_mode = 2
+size_flags_vertical = 3
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox/PlayerPreview"]
+size = Vector2i(550, 550)
+render_target_update_mode = 4
+
+[node name="PreviewCamera" type="Camera3D" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox/PlayerPreview/SubViewport"]
+
+[node name="PlayerPreviewController" type="Node3D" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox/PlayerPreview/SubViewport"]
+script = ExtResource("3_preview_controller")
+
+[node name="CustomizeButton" type="Button" parent="UILayer/MainPanel/ContentHBox/RightSide/VBox"]
+layout_mode = 2
+text = "Customize"
+
+[node name="LevelSelectPanel" type="Control" parent="UILayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="UILayer/LevelSelectPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.101961, 0.101961, 0.180392, 0.85)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UILayer/LevelSelectPanel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -200.0
+offset_right = 150.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="UILayer/LevelSelectPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Select Level"
+horizontal_alignment = 1
+
+[node name="ArenaButton" type="Button" parent="UILayer/LevelSelectPanel/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Arena"
+
+[node name="HillsButton" type="Button" parent="UILayer/LevelSelectPanel/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Hills"
+
+[node name="CityButton" type="Button" parent="UILayer/LevelSelectPanel/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "City"
+
+[node name="BackButton" type="Button" parent="UILayer/LevelSelectPanel/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+text = "Back"
+
+[node name="CustomizationPanel" type="Control" parent="UILayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4_customization_panel")
+
+[node name="Background" type="ColorRect" parent="UILayer/CustomizationPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.101961, 0.101961, 0.180392, 0.85)
+
+[node name="InfoPanel" type="Control" parent="UILayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="UILayer/InfoPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.101961, 0.101961, 0.180392, 0.85)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UILayer/InfoPanel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -250.0
+offset_right = 300.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="UILayer/InfoPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Controls & Info"
+horizontal_alignment = 1
+
+[node name="InfoText" type="RichTextLabel" parent="UILayer/InfoPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "[b]Movement:[/b] WASD
+[b]Jump:[/b] Space
+[b]Force Stop:[/b] E
+[b]Fire Weapon:[/b] Left Mouse
+[b]Aim/Scope:[/b] Right Mouse
+[b]Reload:[/b] R
+[b]Throw Grenade:[/b] G (hold to charge)
+[b]Melee Attack:[/b] alt
+[b]Flashlight:[/b] F
+[b]Pause:[/b] Escape
+
+Eliminate enemies to survive!"
+
+[node name="BackButton" type="Button" parent="UILayer/InfoPanel/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+text = "Back"
+
+[node name="MenuController" type="Node" parent="."]
+script = ExtResource("1_menu_controller")

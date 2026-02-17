@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Ball-Fight-Game"
 config/description="A physics-based rolling-ball arena shooter. Roll, shoot, and fight waves of enemy balls."
-run/main_scene="res://scenes/ui/StartMenu.tscn"
+run/main_scene="res://scenes/ui/MenuBackgroundScene.tscn"
 config/features=PackedStringArray("4.6", "C#", "Forward Plus")
 
 [autoload]

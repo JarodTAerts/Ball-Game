@@ -51,6 +51,12 @@ public partial class WeaponDropSpawner : Node
         CallDeferred(MethodName.SpawnInitialWeapons);
     }
 
+    public override void _ExitTree()
+    {
+        if (_gm != null)
+            _gm.KillsChanged -= OnKillsChanged;
+    }
+
     private void SpawnInitialWeapons()
     {
         OnKillsChanged(_gm.Kills);

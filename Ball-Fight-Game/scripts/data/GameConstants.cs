@@ -17,17 +17,48 @@ public static class Groups
 }
 
 /// <summary>
+/// Faction system for multi-faction combat.
+/// Determines which entities can damage each other.
+/// </summary>
+public enum Faction
+{
+	Team1,  // Blue team - Player team in normal gameplay
+	Team2,  // Red team - Enemy team in normal gameplay
+	Team3,  // Green team - Additional team for menu/special modes
+	Team4   // Yellow team - Additional team for menu/special modes
+}
+
+/// <summary>
+/// Team color mapping for visual indicators.
+/// </summary>
+public static class TeamColors
+{
+	public static Color GetColor(Faction faction)
+	{
+		return faction switch
+		{
+			Faction.Team1 => new Color(0.2f, 0.5f, 1.0f),    // Blue
+			Faction.Team2 => new Color(1.0f, 0.2f, 0.2f),    // Red
+			Faction.Team3 => new Color(0.2f, 1.0f, 0.2f),    // Green
+			Faction.Team4 => new Color(1.0f, 1.0f, 0.2f),    // Yellow
+			_ => new Color(1.0f, 1.0f, 1.0f)                 // White (fallback)
+		};
+	}
+}
+
+/// <summary>
 /// Shared scene path constants. Centralises every scene reference so a rename
 /// only needs to be fixed in one place.
 /// </summary>
 public static class Scenes
 {
-    public const string StartMenu         = "res://scenes/ui/StartMenu.tscn";
-    public const string CustomizationMenu = "res://scenes/ui/CustomizationMenu.tscn";
-    public const string ArenaLevel        = "res://scenes/levels/ArenaLevel.tscn";
-    public const string HillsLevel        = "res://scenes/levels/HillsLevel.tscn";
-    public const string CityLevel         = "res://scenes/levels/CityLevel.tscn";
-    public const string Tutorial          = "res://scenes/levels/Tutorial.tscn";
+    public const string StartMenu           = "res://scenes/ui/StartMenu.tscn";
+    public const string MenuBackground      = "res://scenes/ui/MenuBackgroundScene.tscn";
+    public const string CustomizationMenu   = "res://scenes/ui/CustomizationMenu.tscn";
+    public const string ArenaLevel          = "res://scenes/levels/ArenaLevel.tscn";
+    public const string HillsLevel          = "res://scenes/levels/HillsLevel.tscn";
+    public const string CityLevel           = "res://scenes/levels/CityLevel.tscn";
+    public const string Tutorial            = "res://scenes/levels/Tutorial.tscn";
 
     // Projectiles
     public const string Bullet    = "res://scenes/projectiles/Bullet.tscn";
@@ -41,6 +72,7 @@ public static class Scenes
     public const string GrenadePickup = "res://scenes/pickups/GrenadePickup.tscn";
 
     // Enemies
+    public const string Enemy       = "res://scenes/enemies/Enemy.tscn";
     public const string EnemyNormal = "res://scenes/enemies/Enemy.tscn";
     public const string EnemyFast   = "res://scenes/enemies/FastEnemy.tscn";
     public const string EnemyBig    = "res://scenes/enemies/BigEnemy.tscn";
