@@ -215,9 +215,10 @@ public partial class PlayerCustomization : Node
 		if (!_hasCustomization)
 		{
 			var defaultPath = "res://assets/textures/faces/SmileyFace1.png";
-			if (FileAccess.FileExists(defaultPath))
+			var defaultTex = GD.Load<Texture2D>(defaultPath);
+			if (defaultTex != null)
 			{
-				var defaultImage = Image.LoadFromFile(defaultPath);
+				var defaultImage = defaultTex.GetImage();
 				if (defaultImage != null)
 				{
 					_cachedSkin = ImageTexture.CreateFromImage(defaultImage);
@@ -314,20 +315,14 @@ public partial class PlayerCustomization : Node
 
 	private Image? LoadFeatureImage(string path)
 	{
-		if (!FileAccess.FileExists(path))
+		// Use GD.Load so the resource system maps .png → .ctex in exports
+		var texture = GD.Load<Texture2D>(path);
+		if (texture == null)
 		{
 			GD.PushWarning($"PlayerCustomization: Feature image not found: {path}");
 			return null;
 		}
-
-		var image = Image.LoadFromFile(path);
-		if (image == null)
-		{
-			GD.PushWarning($"PlayerCustomization: Failed to load feature image: {path}");
-			return null;
-		}
-
-		return image;
+		return texture.GetImage();
 	}
 
 	private void BlitCentered(Image dest, Image src, Vector2I centerPos)
